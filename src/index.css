@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --------------------------------------------------
+   🔹 Estilos globales personalizados
+   🔹 Para mantener alineado el CheckoutProgress
+-------------------------------------------------- */
+
+.checkout-progress-container {
+  @apply flex justify-center w-full;
+}
+
+.checkout-progress-inner {
+  @apply w-full max-w-2xl px-4 py-6;
+}
+
+
+
