@@ -12,56 +12,61 @@
  *   - Componente de presentación modular para cada elemento de información.
  */
 import React, { useEffect, useState, useMemo } from "react";
-import { FaUser, FaEnvelope, FaIdCard, FaUserTag } from "react-icons/fa";
+import {
+  FaUser,
+  FaEnvelope,
+  FaIdCard,
+  FaUserTag,
+  FaShieldAlt,
+} from "react-icons/fa";
 
 import PageCrud from "../Pagess/PageCrud";
 import { useUserRoles } from "../../../hooks/useUserRole";
 import { useUsuarioActual } from "../../../hooks/useUsuarioActual";
+import InfoItem from "./InfoItem";
+import LayoutContainer from "../../../utils/LayoutContainer";
 
-/**
- * Helper para formatear la información del perfil
- * - Separa nombres y apellidos en primer/segundo nombre y apellido paterno/materno.
- * - Combina los roles del usuario en una cadena legible.
- */
+/* =======================
+   Helper de formateo
+======================= */
 const formatearPerfil = (userInfo, userRoles) => {
   if (!userInfo) return null;
-  const nombres = userInfo.nombreCompleto?.split(" ") ?? [];
-  const apellidos = userInfo.apellidoCompleto?.split(" ") ?? [];
+
   const rolesUsuario =
     userRoles
       ?.filter((r) => r.usuarioId === userInfo.usuarioId)
       .map((r) => r.nombreRol) ?? [];
+
   return {
     ...userInfo,
-    primerNombre: nombres[0] || "",
-    segundoNombre: nombres.slice(1).join(" ") || "",
-    apellidoPaterno: apellidos[0] || "",
-    apellidoMaterno: apellidos.slice(1).join(" ") || "",
+    nombreCompleto: userInfo.nombreCompleto || "",
+    apellidosCompletos: userInfo.apellidoCompleto || "",
     rolUsuario: rolesUsuario.join(", ") || "Invitado",
   };
 };
 
 const PerfilPage = () => {
-  // Obtención de datos del usuario actual
   const { data: userInfo, isLoading } = useUsuarioActual();
   const { data: userRoles } = useUserRoles();
-  // Estado local para la previsualización de la imagen de perfil
+
   const [imagePreview, setImagePreview] = useState(null);
-  // Memoización para no recalcular perfil a menos que cambien los datos
+
   const perfil = useMemo(
     () => formatearPerfil(userInfo, userRoles),
     [userInfo, userRoles]
   );
-  // Actualiza la previsualización cuando cambia la información del perfil
+
   useEffect(() => {
     if (perfil?.imagen) setImagePreview(perfil.imagen);
   }, [perfil]);
-  // Render de carga mientras se obtienen los datos
+
   if (isLoading || !perfil) {
     return (
       <PageCrud activeTab="perfil">
-        <div className="flex items-center justify-center min-h-[calc(100vh-100px)]">
-          <p className="text-lg text-gray-500">Cargando información...</p>
+        <div className="flex items-center justify-center min-h-[calc(100vh-120px)]">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Cargando información del perfil...
+          </p>
         </div>
       </PageCrud>
     );
@@ -69,82 +74,81 @@ const PerfilPage = () => {
 
   return (
     <PageCrud activeTab="perfil">
-      <div className="flex justify-center items-center min-h-[calc(100vh-100px)] p-6">
-        <div
-          className="bg-gradient-to-br from-white to-gray-100 dark:from-gray-900 dark:to-gray-800
-                        text-gray-900 dark:text-white shadow-xl rounded-3xl w-full max-w-4xl p-10 
-                        border border-gray-200 dark:border-gray-700"
-        >
-          {/* Título principal de la página */}
-          <h1 className="text-4xl font-extrabold text-center mb-8 tracking-tight text-gray-800 dark:text-gray-100">
-            Perfil de Usuario
-          </h1>
+      <LayoutContainer maxWidth="1100px">
+        {/* ================= CARD PRINCIPAL ================= */}
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          {/* ================= HEADER ================= */}
+          <div className="px-6 py-5 bg-gradient-to-r from-blue-600 to-indigo-700">
+            <h1 className="text-xl font-semibold text-white">
+              Perfil de Usuario
+            </h1>
+            <p className="text-sm text-blue-100 mt-1">
+              Información personal y roles asignados
+            </p>
+          </div>
 
-          {/* Foto de perfil con previsualización */}
-          <div className="flex justify-center mb-8">
-            <div className="relative w-44 h-44 rounded-full overflow-hidden shadow-2xl border-4 border-white dark:border-gray-700">
-              <img
-                src={imagePreview || "https://via.placeholder.com/150"}
-                alt="Foto de perfil"
-                className="w-full h-full object-cover"
+          {/* ================= CONTENIDO ================= */}
+          <div className="p-6">
+            {/* Avatar */}
+            <div className="flex flex-col items-center mb-8">
+              <div className="relative">
+                <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white dark:border-gray-800 shadow-md">
+                  <img
+                    src={imagePreview || "https://via.placeholder.com/150"}
+                    alt="Foto de perfil"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+
+                {/* Badge */}
+                <div className="absolute bottom-1 right-1 bg-green-500 text-white p-2 rounded-full shadow">
+                  <FaShieldAlt size={12} />
+                </div>
+              </div>
+
+              <p className="mt-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {perfil.nombreCompleto} {perfil.apellidosCompletos}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {perfil.rolUsuario}
+              </p>
+            </div>
+
+            {/* ================= DATOS ================= */}
+            {/* ================= DATOS ================= */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <InfoItem
+                icon={<FaUser />}
+                label="Nombre Completo"
+                value={perfil.nombreCompleto}
               />
-              <div className="absolute bottom-0 left-0 right-0 h-2 bg-gradient-to-t from-black/50 to-transparent" />
+
+              <InfoItem
+                icon={<FaUser />}
+                label="Apellidos"
+                value={perfil.apellidosCompletos}
+              />
+
+              <InfoItem icon={<FaIdCard />} label="DNI" value={perfil.dni} />
+
+              <InfoItem
+                icon={<FaUserTag />}
+                label="Rol"
+                value={perfil.rolUsuario}
+              />
+
+              <InfoItem
+                icon={<FaEnvelope />}
+                label="Correo Electrónico"
+                value={perfil.correoElectronico}
+                full
+              />
             </div>
           </div>
-
-          {/* Información detallada del usuario */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-            <InfoItem
-              icon={<FaUser />}
-              label="Primer Nombre"
-              value={perfil.primerNombre}
-            />
-            <InfoItem
-              icon={<FaUser />}
-              label="Segundo Nombre"
-              value={perfil.segundoNombre}
-            />
-            <InfoItem
-              icon={<FaUser />}
-              label="Apellido Paterno"
-              value={perfil.apellidoPaterno}
-            />
-            <InfoItem
-              icon={<FaUser />}
-              label="Apellido Materno"
-              value={perfil.apellidoMaterno}
-            />
-            <InfoItem icon={<FaIdCard />} label="DNI" value={perfil.dni} />
-            <InfoItem
-              icon={<FaUserTag />}
-              label="Rol"
-              value={perfil.rolUsuario}
-            />
-            <InfoItem
-              icon={<FaEnvelope />}
-              label="Correo Electrónico"
-              value={perfil.correoElectronico}
-            />
-          </div>
         </div>
-      </div>
+      </LayoutContainer>
     </PageCrud>
   );
 };
-/**
- * Componente de presentación de cada elemento de información
- * - label: nombre del campo
- * - value: valor correspondiente
- */
-const InfoItem = ({ icon, label, value }) => (
-  <div className="flex flex-col bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300">
-    <div className="flex items-center gap-3 mb-1 text-gray-600 dark:text-gray-300">
-      {icon} <span className="font-medium">{label}</span>
-    </div>
-    <span className="text-gray-800 dark:text-gray-100 font-semibold text-lg">
-      {value}
-    </span>
-  </div>
-);
 
 export default PerfilPage;

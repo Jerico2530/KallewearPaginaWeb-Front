@@ -1,248 +1,341 @@
-/**
- * CheckoutPayment.jsx
- *
- * Descripción del proyecto:
- * Este componente forma parte del flujo de checkout de una tienda en línea,
- * encargado de gestionar el pago de la orden creada por el usuario.
- *
- * Funcionalidades clave:
- * 1. Mostrar detalles de la orden y monto a pagar.
- * 2. Permitir seleccionar tipo de pago (tarjeta, wallet, etc.).
- * 3. Filtrar y seleccionar el medio de pago disponible según el tipo.
- * 4. Recoger datos de tarjeta si aplica.
- * 5. Crear el registro de pago y redirigir al detalle de la orden.
- *
- * Propósito:
- * Garantizar un pago seguro y confiable, integrando la lógica de selección de tipo
- * y medio de pago con validaciones básicas de datos.
- */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaCreditCard, FaMobileAlt, FaWallet, FaLock } from "react-icons/fa";
+import { CreditCard, Plus, ChevronDown, Info, Wallet , ChevronLeft  } from "lucide-react";
 import CheckoutLayout from "../Checkout/CheckoutLayout";
 import { useTipoPagos } from "../../../hooks/useTipoPago";
 import { useMedioPagos } from "../../../hooks/useMedioPago";
+import { useInfoTarjetasByUsuario } from "../../../hooks/useInfoTarjeta";
 import { useCreatePago } from "../../../hooks/usePago";
 import useUserStore from "../../../store/userStore";
+import { useQueryClient } from "@tanstack/react-query";
 
 const CheckoutPayment = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  // Obtener datos de la orden desde la navegación
+  const queryClient = useQueryClient();
+
   const { ordenId, monto } = location.state || {};
-  // Datos del usuario
-  const { usuarioId, nombreCompleto, correoElectronico } = useUserStore();
-  // Validación inicial: redirigir si no hay orden
+  const { usuarioId } = useUserStore();
+
   if (!ordenId) {
     return (
-      <p className="text-center mt-20 text-red-500">
+      <p className="text-center mt-20 text-red-500 dark:text-red-400">
         🚨 No se recibió una orden válida. Regresa al carrito.
       </p>
     );
   }
 
-  const { data: tiposPago = [] } = useTipoPagos(); // Obtener tipos de pago disponible
-  const { data: mediosPago = [] } = useMedioPagos(); // Obtener medios de pago disponibles
-  const createPago = useCreatePago(); // Hook para crear pago en backend
+  const { data: tiposPago = [] } = useTipoPagos();
+  const { data: mediosPago = [] } = useMedioPagos();
+  const { data: infoTarjetas = [] } = useInfoTarjetasByUsuario(usuarioId);
+  const createPago = useCreatePago();
 
-  const [tipoSeleccionado, setTipoSeleccionado] = useState(null); // Tipo de pago seleccionado
-  const [medioSeleccionado, setMedioSeleccionado] = useState(null); // Medio de pago seleccionado
-  const [formData, setFormData] = useState({
+  const [tipoSeleccionado, setTipoSeleccionado] = useState(null);
+  const [medioSeleccionado, setMedioSeleccionado] = useState(null);
+  const [tarjetaSeleccionada, setTarjetaSeleccionada] = useState(null);
+  const [agregandoNuevaTarjeta, setAgregandoNuevaTarjeta] = useState(false);
+  const [formNuevaTarjeta, setFormNuevaTarjeta] = useState({
     numero: "",
     vencimiento: "",
     cvv: "",
-  }); // Datos de tarjeta
+  });
 
-  // Iconos asociados a tipos de pago
-  const iconos = {
-    1: <FaCreditCard className="w-5 h-5 text-secondary" />,
-    2: <FaCreditCard className="w-5 h-5 text-secondary" />,
-    3: <FaMobileAlt className="w-5 h-5 text-secondary" />,
-  };
+  useEffect(() => {
+    setAgregandoNuevaTarjeta(infoTarjetas.length === 0);
+  }, [infoTarjetas]);
 
   const handleTipo = (tipo) => {
     setTipoSeleccionado(tipo);
     setMedioSeleccionado(null);
-    setFormData({ numero: "", vencimiento: "", cvv: "" }); // Reset formulario al cambiar tipo
   };
 
-  const handleMedio = (medio) => setMedioSeleccionado(medio); // Guardar medio seleccionado
-  const handleChange = (e) =>
-    setFormData({ ...formData, [e.target.name]: e.target.value }); // Actualizar formulario
-
-  // Confirmar pago y crear registro en backend
-  const handleConfirm = async () => {
-    if (!medioSeleccionado) return;
-
-    const nuevoPago = {
-      ordenId,
-      usuarioId,
-      medioPagoId: medioSeleccionado.medioPagoId,
-      tipoPago: medioSeleccionado.descripcionTipoPago,
-      descripcionMedioPago: medioSeleccionado.descripcionMedioPago,
-      monto,
-      codigoOperacion:
-        tipoSeleccionado?.tipoPagoId === 3
-          ? "WALLET-" + Date.now()
-          : "CARD-" + formData.numero.slice(-4),
-      estado: true,
-      nombreCliente: nombreCompleto,
-      correoCliente: correoElectronico,
-    };
-
-    try {
-      const pagoCreado = await createPago.mutateAsync(nuevoPago);
-      navigate("/ordenDetallado", {
-        state: {
-          pagoId: pagoCreado.pagoId,
-          ordenId,
-          medioPagoId: medioSeleccionado.medioPagoId,
-        },
-      });
-    } catch (error) {
-      console.error("Error al registrar el pago:", error);
-    }
+  const handleAgregarNuevaTarjeta = () => {
+    setTarjetaSeleccionada(null);
+    setTipoSeleccionado(null);
+    setMedioSeleccionado(null);
+    setAgregandoNuevaTarjeta(true);
   };
-  // Filtrar medios disponibles según el tipo seleccionado
+
+  const handleMedio = (medio) => setMedioSeleccionado(medio);
+  const handleTarjeta = (tarjeta) => {
+    setTarjetaSeleccionada(tarjeta);
+    setAgregandoNuevaTarjeta(false);
+    setTipoSeleccionado({ tipoPagoId: tarjeta.tipoPagoId });
+  };
+
+  const handleChangeNuevaTarjeta = (e) => {
+    setFormNuevaTarjeta({
+      ...formNuevaTarjeta,
+      [e.target.name]: e.target.value,
+    });
+  };
+
   const mediosFiltrados = mediosPago.filter(
     (m) => m.tipoPagoId === tipoSeleccionado?.tipoPagoId
   );
 
+  const handleConfirm = async () => {
+    let payload;
+
+    if (tarjetaSeleccionada) {
+      payload = {
+        ordenId,
+        infoTarjetaId: tarjetaSeleccionada.infoTarjetaId,
+        medioPagoId: tarjetaSeleccionada.medioPagoId,
+        codigoOperacion: "CARD-" + Date.now(),
+        estado: true,
+      };
+    } else {
+      if (!medioSeleccionado) {
+        alert("Selecciona un medio de pago");
+        return;
+      }
+      payload = {
+        ordenId,
+        infoTarjetaId: 0,
+        medioPagoId: medioSeleccionado.medioPagoId,
+        codigoOperacion: "CARD-" + Date.now(),
+        estado: true,
+        nuevaTarjeta: {
+          numeroTarjeta: formNuevaTarjeta.numero,
+          fechaVencimiento: formNuevaTarjeta.vencimiento,
+          cvv: formNuevaTarjeta.cvv,
+          estado: true,
+        },
+      };
+    }
+
+    try {
+      const pagoCreado = await createPago.mutateAsync(payload);
+
+      await queryClient.cancelQueries({
+        queryKey: ["carritoCompra", usuarioId],
+      });
+      queryClient.removeQueries({ queryKey: ["carritoCompra", usuarioId] });
+      queryClient.invalidateQueries({ queryKey: ["carritoCompra", usuarioId] });
+      queryClient.invalidateQueries({ queryKey: ["productoTallas"] });
+
+      navigate("/ordenDetallado", {
+        replace: true,
+        state: { pagoId: pagoCreado.pagoId, ordenId },
+      });
+    } catch {}
+  };
+
   return (
     <CheckoutLayout step={4}>
-      {/*  Contenedor centrado sin fondo de color */}
-      <div className="flex justify-center items-center min-h-[calc(100vh-220px)] px-4">
-        {/*  Card principal, misma estética que CheckoutDelivery */}
-        <div className="w-full max-w-2xl bg-transparent border border-gray-300 dark:border-gray-700 rounded-3xl p-8 md:p-10 shadow-lg backdrop-blur-sm animate-fadeIn text-gray-900 dark:text-white">
-          <h2 className="text-3xl font-bold text-center text-secondary mb-2">
-            💳 Pago Seguro
-          </h2>
-          <p className="text-center text-gray-600 dark:text-gray-300 mb-6">
-            Estás pagando la orden{" "}
-            <span className="font-semibold text-secondary">#{ordenId}</span> por{" "}
-            <span className="font-bold text-green-600 dark:text-green-400">
-              S/. {monto?.toFixed(2)}
-            </span>
-          </p>
-
-          {/* Selección de tipo de pago */}
-          <h3 className="text-lg font-semibold text-secondary mb-3">
-            Selecciona el tipo de pago
-          </h3>
-          <div className="flex flex-col gap-3 mb-6">
-            {tiposPago.map((tipo) => (
-              <button
-                key={tipo.tipoPagoId}
-                onClick={() => handleTipo(tipo)}
-                className={`flex items-center gap-3 w-full p-4 rounded-2xl border transition-all duration-300 ${
-                  tipoSeleccionado?.tipoPagoId === tipo.tipoPagoId
-                    ? "border-secondary bg-secondary/10 scale-[1.03]"
-                    : "border-gray-300 dark:border-gray-700 hover:border-secondary/70"
-                }`}
-              >
-                {iconos[tipo.tipoPagoId]}
-                <span className="font-medium">{tipo.descripcionTipoPago}</span>
-              </button>
-            ))}
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        {/* Resumen de Orden */}
+        {/* Resumen de Orden Profesional */}
+        <div className="flex flex-col md:flex-row md:justify-between gap-4 p-6 bg-white dark:bg-gray-800 shadow-xl rounded-2xl mb-6">
+          {/* Ícono de Orden */}
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-50 dark:bg-blue-900 rounded-xl">
+              <CreditCard
+                className="text-blue-600 dark:text-blue-400"
+                size={28}
+              />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+                Orden ID
+              </span>
+              <span className="text-gray-900 dark:text-gray-100 font-bold text-lg">
+                {ordenId}
+              </span>
+            </div>
           </div>
 
-          {/* Selección de medio de pago */}
-          {tipoSeleccionado && (
-            <>
-              <h3 className="text-lg font-semibold text-secondary mb-3">
-                Elige tu medio de pago
+          {/* Monto Total */}
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-green-50 dark:bg-green-900 rounded-xl">
+              <span className="text-green-600 dark:text-green-400 font-bold text-xl">
+                S/.
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+                Monto Total
+              </span>
+              <span className="text-gray-900 dark:text-gray-100 font-bold text-lg">
+                {monto?.toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          {/* Estado Orden */}
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900 rounded-xl">
+              <span className="text-yellow-600 dark:text-yellow-400 font-bold text-xl">
+                💳
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+                Estado
+              </span>
+              <span className="text-gray-900 dark:text-gray-100 font-bold text-lg">
+                Pendiente
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Tarjetas Guardadas */}
+        {infoTarjetas.length > 0 && !agregandoNuevaTarjeta && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+              Tarjetas guardadas
+            </h3>
+            {infoTarjetas.map((t) => (
+              <div
+                key={t.infoTarjetaId}
+                onClick={() => handleTarjeta(t)}
+                className={`p-4 rounded-xl cursor-pointer border-2 transition-all
+                  ${
+                    tarjetaSeleccionada?.infoTarjetaId === t.infoTarjetaId
+                      ? "border-blue-600 ring-2 ring-blue-50 dark:ring-blue-800"
+                      : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                  } 
+                  bg-white dark:bg-gray-900 shadow-sm`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-lg">
+                      <CreditCard
+                        className="text-blue-600 dark:text-blue-400"
+                        size={20}
+                      />
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-800 dark:text-gray-200">
+                        {t.descripcionMedioPago} ••••{" "}
+                        {t.numeroTarjeta.slice(-4)}
+                      </p>
+                    </div>
+                  </div>
+                  {tarjetaSeleccionada?.infoTarjetaId === t.infoTarjetaId && (
+                    <div className="w-5 h-5 rounded-full border-2 border-blue-600 flex items-center justify-center">
+                      <div className="w-2.5 h-2.5 bg-blue-600 rounded-full" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <button
+              onClick={handleAgregarNuevaTarjeta}
+              className="w-full mt-2 py-3 flex items-center justify-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl hover:border-blue-400 hover:text-blue-600 transition-colors"
+            >
+              <Plus size={18} />
+              Agregar tarjeta o Gift Card
+            </button>
+          </div>
+        )}
+
+        {/* Nueva Tarjeta */}
+        {agregandoNuevaTarjeta && (
+          <div className="mt-6 space-y-6">
+            {/* Botón regresar a tarjetas guardadas */}
+            <div className="flex justify-start">
+              <button
+                onClick={() => setAgregandoNuevaTarjeta(false)}
+                className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700 rounded-xl px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
+              >
+                <ChevronLeft size={16} />
+                Regresar a tarjetas guardadas
+              </button>
+            </div>
+
+            {/* ===== MÉTODO DE PAGO ===== */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                Método de pago
               </h3>
-              <div className="flex flex-col gap-3 mb-6">
-                {mediosFiltrados.map((medio) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {tiposPago.map((tipo) => (
                   <button
-                    key={medio.medioPagoId}
-                    onClick={() => handleMedio(medio)}
-                    className={`flex items-center gap-3 w-full p-4 rounded-2xl border transition-all duration-300 ${
-                      medioSeleccionado?.medioPagoId === medio.medioPagoId
-                        ? "border-secondary bg-secondary/10 scale-[1.03]"
-                        : "border-gray-300 dark:border-gray-700 hover:border-secondary/70"
-                    }`}
+                    key={tipo.tipoPagoId}
+                    onClick={() => handleTipo(tipo)}
+                    className={`w-full p-4 rounded-xl border-2 transition-all text-left shadow-sm
+              ${
+                tipoSeleccionado?.tipoPagoId === tipo.tipoPagoId
+                  ? "border-blue-600 bg-blue-50 dark:bg-blue-900 shadow-md"
+                  : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+              }`}
                   >
-                    {iconos[medio.tipoPagoId] || (
-                      <FaWallet className="w-5 h-5 text-secondary" />
-                    )}
-                    <span className="font-medium">
-                      {medio.descripcionMedioPago}
-                    </span>
+                    {tipo.descripcionTipoPago}
                   </button>
                 ))}
               </div>
-            </>
-          )}
-
-          {/* Formulario para tarjeta de crédito/débito */}
-          {medioSeleccionado && tipoSeleccionado?.tipoPagoId !== 3 && (
-            <div className="mb-6 space-y-4 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-5 rounded-2xl shadow-inner">
-              <h3 className="text-base font-semibold text-secondary mb-2">
-                Detalles de la Tarjeta
-              </h3>
-              <input
-                type="text"
-                name="numero"
-                placeholder="Número de tarjeta"
-                value={formData.numero}
-                onChange={handleChange}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 bg-white dark:bg-gray-900 focus:ring-2 focus:ring-secondary transition"
-              />
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  name="vencimiento"
-                  placeholder="MM/AA"
-                  value={formData.vencimiento}
-                  onChange={handleChange}
-                  className="w-1/2 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 bg-white dark:bg-gray-900 focus:ring-2 focus:ring-secondary transition"
-                />
-                <input
-                  type="text"
-                  name="cvv"
-                  placeholder="CVV"
-                  value={formData.cvv}
-                  onChange={handleChange}
-                  className="w-1/2 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 bg-white dark:bg-gray-900 focus:ring-2 focus:ring-secondary transition"
-                />
-              </div>
-              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-2">
-                <FaLock className="text-secondary" />
-                <p>Tus datos están seguros y encriptados.</p>
-              </div>
             </div>
-          )}
 
-          {/* Mensaje para Wallet */}
-          {medioSeleccionado && tipoSeleccionado?.tipoPagoId === 3 && (
-            <div className="mb-6 p-4 rounded-2xl bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300 animate-fadeIn">
-              <p>
-                Serás redirigido a{" "}
-                <strong className="text-secondary">
-                  {medioSeleccionado.descripcionMedioPago}
-                </strong>{" "}
-                para completar el pago.
-              </p>
-            </div>
-          )}
+            {/* ===== TIPO DE TARJETA ===== */}
+            {tipoSeleccionado && mediosFiltrados.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                  Tipo de tarjeta
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {mediosFiltrados.map((medio) => (
+                    <button
+                      key={medio.medioPagoId}
+                      onClick={() => handleMedio(medio)}
+                      className={`w-full p-4 rounded-xl border-2 transition-all text-left shadow-sm
+                ${
+                  medioSeleccionado?.medioPagoId === medio.medioPagoId
+                    ? "border-blue-600 bg-blue-50 dark:bg-blue-900 shadow-md"
+                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                }`}
+                    >
+                      {medio.descripcionMedioPago}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          {/* Botón Confirmar pago */}
-          <button
-            disabled={
-              !medioSeleccionado ||
-              (tipoSeleccionado?.tipoPagoId !== 3 && !formData.numero)
-            }
-            onClick={handleConfirm}
-            className={`w-full py-4 rounded-2xl font-semibold text-lg tracking-wide shadow-md transition-all duration-300 ${
-              medioSeleccionado
-                ? "bg-secondary text-white hover:opacity-90 hover:scale-[1.03]"
-                : "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
-            }`}
-          >
-            Confirmar Pago 💰
-          </button>
-        </div>
+            {/* ===== DATOS DE LA TARJETA ===== */}
+            {medioSeleccionado && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                  Datos de la tarjeta
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <input
+                    name="numero"
+                    placeholder="Número de tarjeta"
+                    value={formNuevaTarjeta.numero}
+                    onChange={handleChangeNuevaTarjeta}
+                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    name="vencimiento"
+                    placeholder="MM/AA"
+                    value={formNuevaTarjeta.vencimiento}
+                    onChange={handleChangeNuevaTarjeta}
+                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    name="cvv"
+                    placeholder="CVV"
+                    value={formNuevaTarjeta.cvv}
+                    onChange={handleChangeNuevaTarjeta}
+                    className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Confirmar Pago */}
+        <button
+          onClick={handleConfirm}
+          className="w-full mt-6 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+        >
+          Confirmar Pago 💰
+        </button>
       </div>
     </CheckoutLayout>
   );

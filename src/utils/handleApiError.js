@@ -2,6 +2,7 @@
 export const handleApiError = (error, notify, { debug = false } = {}) => {
   let message = null; // null = si no hay mensaje claro, no notificar al usuario
   let detalleTecnico = null;
+  
 
   try {
     if (error?.response?.data) {
@@ -23,7 +24,7 @@ export const handleApiError = (error, notify, { debug = false } = {}) => {
           message = mensajes.join(" | ");
         }
 
-      // Caso 2: mensaje único del backend
+      // Caso 2: mensaje único del backend  
       } else if (data.mensaje) {
         message = data.mensaje.trim();
       }

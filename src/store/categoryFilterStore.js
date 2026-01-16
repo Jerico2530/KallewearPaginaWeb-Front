@@ -24,19 +24,16 @@ const useCategoryFilterStore = create((set) => ({
   // Función para actualizar la lista de categorías seleccionadas
   setSelectedCategories: (categories) =>
     set({ selectedCategories: categories }),
+  
   // Alterna la selección de una categoría
-  handleFilter: (category, ref) => {
-    set((state) => {
-      const isSelected = state.selectedCategories.includes(category);
-      const updated = isSelected
-        ? [] // Si la categoría ya está seleccionada, limpiar selección
-        : [category]; // solo una categoría activa
+  handleFilter: (newCategories, ref) => {
+    set({ selectedCategories: newCategories }); // Actualiza el array
 
-      return { selectedCategories: updated };
-    });
-    // Completa la acción en componentes de UI si se pasa una referencia
+    // Finaliza la barra de carga con un pequeño retardo
     if (ref?.current) {
-      setTimeout(() => ref.current.complete(), 50);
+      setTimeout(() => {
+        ref.current.complete();
+      }, 50);
     }
   },
 }));

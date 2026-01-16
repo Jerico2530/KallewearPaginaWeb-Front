@@ -24,7 +24,7 @@ import {
   useDeletePago,
   useExportarExcelPagos,
 } from "../../../../hooks/usePago";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const usePagosAdmin = (nuevoPagoForm, editPagoForm) => {
@@ -35,7 +35,7 @@ export const usePagosAdmin = (nuevoPagoForm, editPagoForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelPagos();
   // Servicio centralizado de notificaciones UI
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal de datos del carrito (caché integrada)
   const { data: pagos, isLoading } = usePagos();
   // Mutaciones CRUD
@@ -47,18 +47,22 @@ export const usePagosAdmin = (nuevoPagoForm, editPagoForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos
     if (!(await nuevoPagoForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
 
-    crearPago.mutate(nuevoPagoForm.values, {
-      onSuccess: () => {
-        notify.success("Pago creado correctamente");
-        queryClient.invalidateQueries(["pago"]); // sincroniza la vista
-        nuevoPagoForm.resetForm(); // limpia campos
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearPago
+        .mutateAsync(nuevoPagoForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["pago"]);
+          nuevoPagoForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Iniciar modo edición cargando los datos seleccionados */
@@ -76,84 +80,86 @@ export const usePagosAdmin = (nuevoPagoForm, editPagoForm) => {
   /** Guardar cambios de edición */
   const handleGuardar = async () => {
     if (!(await editPagoForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
     const dataEditar = { pagoId: editandoId, ...editPagoForm.values };
 
-    updatePago.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Pago actualizado correctamente");
-        setEditandoId(null);
-        editPagoForm.resetForm();
-        queryClient.invalidateQueries(["pago"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updatePago
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editPagoForm.resetForm();
+          queryClient.invalidateQueries(["pago"]);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar edición restableciendo estado */
   const handleCancelar = () => {
     setEditandoId(null);
     editPagoForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar un carrito con confirmación del usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este pago?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deletePago.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Pago eliminado correctamente");
-
-          // Si el elemento eliminado estaba en edición, salir del modo edición
+    notify.deletePromise(
+      deletePago
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editPagoForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoPagoForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["pagos"], (old) =>
-            old ? old.filter((c) => c.pagoId !== id) : []
+            old ? old.filter((r) => r.pagoId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["pagos"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de anuncios en un archivo Excel */
   const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "pago.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "pago.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   return {

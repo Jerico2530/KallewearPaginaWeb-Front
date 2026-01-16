@@ -22,7 +22,7 @@ import {
   useActualizarOrdenDetalles,
   useEliminarOrdenDetalles,
 } from "../../../../hooks/useOrdenDetalle";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useOrdenDetallesAdmin = (
@@ -34,7 +34,7 @@ export const useOrdenDetallesAdmin = (
   // React Query: acceso completo a la caché para revalidación manual
   const queryClient = useQueryClient();
   // Servicio centralizado de notificaciones UI
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal de datos del oredenDetalle (caché integrada)
   const { data: ordenDetalles, isLoading } = useOrdenDetalles();
   // Mutaciones CRUD

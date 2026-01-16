@@ -11,9 +11,24 @@
  *   - Integración con React Query para manejo de datos optimizado.
  *   - Experiencia responsiva y soporte de modo oscuro.
  */
-import React, { useState } from "react";
+/**
+ * Página de Administración de Permisos
+ * ----------------------------------------------------
+ * - CRUD de Permisos
+ * - React Query
+ * - Tipografía centralizada (typography.css)
+ * - Layout idéntico a UsuariosPageAdmin
+ */
+
+import React from "react";
 import PageCrud from "../Pagess/PageCrud";
 import DataTable from "../../../components/UI/DataTable";
+import { useForm } from "../LogicaAdmin/useForm";
+import { PermisoValidacion } from "../../../validation/PermisoValidacion";
+import { usePermisosAdmin } from "./Logica/usePermisoAdmin";
+import { PermisoInicial } from "../../../constants/permisoConstantes";
+import { permisoFormSchema } from "./Constans/permisoFormSchema";
+import { tablePermisoRenderers } from "./Constans/tablePermisoRenderers";
 import {
   AddButton,
   EditButton,
@@ -22,16 +37,11 @@ import {
   CancelButton,
   ExcelButton,
 } from "../../../components/UI/LogicaButton";
-import { useForm } from "../LogicaAdmin/useForm";
-import { PermisoValidacion } from "../../../validation/PermisoValidacion";
-import { usePermisosAdmin } from "./Logica/usePermisoAdmin";
-import { PermisoInicial } from "../../../constants/permisoConstantes";
 
 const PermisosPageAdmin = () => {
-  // Formularios controlados para crear y editar anuncios
   const nuevoPermisoForm = useForm(PermisoInicial, PermisoValidacion);
   const editPermisoForm = useForm(PermisoInicial, PermisoValidacion);
-  // Hook con toda la lógica de negocio del módulo
+
   const {
     permisos,
     isLoading,
@@ -44,159 +54,187 @@ const PermisosPageAdmin = () => {
     descargarExcel,
   } = usePermisosAdmin(nuevoPermisoForm, editPermisoForm);
 
-  /**
-   * Configuración de columnas del DataTable.
-   * Cada columna define cómo mostrar y cómo editar los datos.
-   */
-  const columns = [
-    {
-      key: "nombrePermiso",
-      label: "nombrePermiso",
-      editable: { type: "text" },
-    },
-    {
-      key: "fechaRegistro",
-      label: "Fecha Registro",
-      render: (r) =>
-        r.fechaRegistro ? new Date(r.fechaRegistro).toLocaleDateString() : "-",
-    },
-    {
-      key: "estado",
-      label: "Estado",
-      render: (r) => (
-        <span
-          className={`font-semibold ${
-            r.estado
-              ? "text-green-700 dark:text-green-400"
-              : "text-red-700 dark:text-red-400"
-          }`}
-        >
-          {r.estado ? "Activo" : "Inactivo"}
-        </span>
-      ),
-      // Permite cambiar el estado desde la tabla
-      editable: {
-        render: (data, onChange) => (
-          <select
-            value={data.estado ? "true" : "false"}
-            onChange={(e) => onChange("estado", e.target.value === "true")}
-            className="border rounded px-1 py-1 w-full dark:bg-gray-700 dark:text-white text-black"
-          >
-            <option value="true">Activo</option>
-            <option value="false">Inactivo</option>
-          </select>
-        ),
-      },
-    },
-  ];
-  // Validación extra antes de crear un anuncio
+  const columns = Object.entries(permisoFormSchema)
+      .filter(([, config]) => config.table)
+      .map(([key, config]) => ({
+        key,
+        label: config.label,
+        className: config.table.className,
+  
+        render: (row) => {
+          const type = config.table.type;
+          if (!type) return row[key];
+  
+          return tablePermisoRenderers[type]
+            ? tablePermisoRenderers[type](row[key], row)
+            : row[key];
+        },
+  
+        editable: config.table.editable
+          ? {
+              render: (data, onChange) => {
+                const value = data[key]; 
+  
+                if (config.table.editable.type === "select") {
+                  return (
+                    <select
+                      value={value ? "true" : "false"}
+                      onChange={(e) => onChange(key, e.target.value === "true")}
+                      className="w-full rounded-md px-2 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-body focus:ring-2 focus:ring-indigo-500 outline-none"
+                    >
+                      {config.table.editable.options.map((o) => (
+                        <option
+                          key={o.value.toString()}
+                          value={o.value.toString()}
+                        >
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                }
+                return (
+                  <input
+                    type={config.table.editable.type || "text"}
+                    value={value ?? ""}
+                    onChange={(e) => onChange(key, e.target.value)}
+                    className="w-full rounded-md px-2 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-body focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                );
+              },
+            }
+          : undefined,
+      }));
+
   const handleCrearConValidacion = async () => {
-    const valido = await nuevoPermisoForm.validate();
-    if (!valido) return; // Si hay errores, no continua
+    const valido = await nuevoForm.validate();
+    if (!valido) return;
     handleCrear();
   };
 
   return (
     <PageCrud activeTab="permiso">
-      <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-lg rounded-2xl max-w-full mx-auto p-4 sm:p-6 space-y-6 border dark:border-gray-700">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-center border-b pb-4 dark:border-secondary text-gray-800 dark:text-gray-100">
-          Administración de Permisos
-        </h1>
-        {/* Distribución principal: formulario + tabla */}
-        <div className="flex flex-col md:flex-row md:items-start gap-4 sm:gap-6 md:gap-8 w-full justify-center">
-          {/* Panel de creación */}
-          <div className="w-full md:w-1/4 max-w-xs self-start h-fit bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 p-4 sm:p-6 rounded-2xl shadow-lg space-y-4 sm:space-y-5 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl sm:text-2xl font-semibold border-b pb-2 mb-3 text-gray-700 dark:text-gray-200">
-              Agregar Permiso
+       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-5 space-y-6">
+        {/* HEADER */}
+        <div className="border-b pb-4 dark:border-gray-700">
+          <h1 className="heading-page text-center">
+            Administración de Permisos
+          </h1>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-6 items-start">
+          {/* FORMULARIO */}
+          <aside className=" w-full md:w-[300px] self-start sticky top-6 h-fit bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-4 shadow-sm ">
+            <h2 className="heading-block border-b pb-2 dark:border-gray-700">
+              Nuevo Permiso
             </h2>
-            {/* Inputs dinámicos generados por la estructura del modelo */}
-            <div className="flex flex-col gap-2 sm:gap-3">
-              {Object.keys(PermisoInicial).map((key) =>
-                key !== "estado" ? (
-                  <div key={key} className="flex flex-col gap-1">
+
+            <div className="space-y-3">
+              {Object.entries(permisoFormSchema).map(([key, config]) => {
+                if (!PermisoInicial.hasOwnProperty(key)) return null;
+
+                /* ===== SELECT ===== */
+                if (config.component === "select") {
+                  return (
+                    <div key={key} className="space-y-1">
+                      <label className="text-secondary text-xs font-medium">
+                        {config.label}
+                      </label>
+
+                      <select
+                        value={nuevoPermisoForm.values[key] ? "true" : "false"}
+                        onChange={(e) =>
+                          nuevoPermisoForm.handleChange(
+                            key,
+                            e.target.value === "true"
+                          )
+                        }
+                        className="w-full rounded-md px-3 py-2 border text-body bg-gray-50 dark:bg-gray-950 border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        {config.options.map((o) => (
+                          <option key={String(o.value)} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                }
+
+                /* ===== INPUT ===== */
+                return (
+                  <div key={key} className="space-y-1">
+                    <label className="text-secondary text-xs font-medium">
+                      {config.label}
+                    </label>
+
                     <input
-                      type={"text"}
-                      placeholder={key}
+                      type={config.type ?? "text"}
                       value={nuevoPermisoForm.values[key]}
                       onChange={(e) =>
                         nuevoPermisoForm.handleChange(key, e.target.value)
                       }
-                      className={`border rounded-lg w-full px-3 py-2 text-sm sm:text-base focus:ring-2 ${
-                        nuevoPermisoForm.errors[key]
-                          ? "border-red-500 focus:ring-red-500"
-                          : "focus:ring-blue-500"
-                      } dark:bg-gray-700 dark:text-gray-100 transition`}
+                      className={`w-full rounded-md px-3 py-2 border text-body bg-gray-50 dark:bg-gray-950
+                                   ${
+                                     nuevoPermisoForm.errors[key]
+                                       ? "border-red-500 focus:ring-red-400"
+                                       : "border-gray-300 dark:border-gray-700 focus:ring-indigo-500"
+                                   }
+                                   focus:outline-none focus:ring-2`}
                     />
 
-                    {/* 🟢 Mostrar error debajo del input */}
                     {nuevoPermisoForm.errors[key] && (
-                      <span className="text-xs text-red-500 font-medium">
+                      <span className="text-error text-xs">
                         {nuevoPermisoForm.errors[key]}
                       </span>
                     )}
                   </div>
-                ) : null
-              )}
-              {/* Selector de estado */}
-              <select
-                value={nuevoPermisoForm.values.estado ? "true" : "false"}
-                onChange={(e) =>
-                  nuevoPermisoForm.handleChange(
-                    "estado",
-                    e.target.value === "true"
-                  )
-                }
-                className="border rounded-lg w-full px-3 py-2 text-sm sm:text-base focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100 transition"
-              >
-                <option value="true">Activo</option>
-                <option value="false">Inactivo</option>
-              </select>
-              {/* Botón de creación con validación */}
-              <div className="flex justify-end mt-2">
-                {/* 🟢 Usar versión con validación */}
+                );
+              })}
+
+              <div className="flex justify-end pt-2">
                 <AddButton onClick={handleCrearConValidacion} label="Agregar" />
               </div>
             </div>
-          </div>
+          </aside>
 
-          {/* Sección de tabla interactiva */}
-          <div className="w-full md:w-3/4 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 p-4 sm:p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-x-auto">
-            <h2 className="text-xl sm:text-2xl font-semibold border-b pb-2 mb-4 text-gray-700 dark:text-gray-200">
-              Lista de Permisos
-            </h2>
-            {/* Control de carga inicial */}
-            <div className="overflow-x-auto scrollbar-none">
-              {isLoading ? (
-                <p className="text-center text-gray-500 dark:text-gray-300">
-                  Cargando...
-                </p>
-              ) : (
-                <DataTable
-                  data={permisos}
-                  keyField="permisoId"
-                  columns={columns}
-                  editId={editandoId}
-                  editData={editPermisoForm.values}
-                  onEditChange={editPermisoForm.handleChange}
-                  onSave={handleGuardar}
-                  onCancel={handleCancelar}
-                  extraHeader={<ExcelButton onClick={descargarExcel} />}
-                  actions={{
-                    render: (p) => (
-                      <div className="flex gap-2 sm:gap-3 justify-center flex-wrap">
-                        <EditButton onClick={() => handleEditar(p)} />
-                        <DeleteButton
-                          onClick={() => handleEliminar(p.permisoId)}
-                        />
-                      </div>
-                    ),
-                    saveIcon: <SaveButton onClick={handleGuardar} />,
-                    cancelIcon: <CancelButton onClick={handleCancelar} />,
-                  }}
-                />
-              )}
+          {/* TABLA */}
+          <section className="flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 overflow-x-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="heading-block">Permisos</h2>
+              <ExcelButton onClick={descargarExcel} />
             </div>
-          </div>
+
+            {isLoading ? (
+              <p className="text-secondary text-center py-10">
+                Cargando permisos...
+              </p>
+            ) : (
+              <DataTable
+                data={permisos}
+                keyField="permisoId"
+                enableSearch
+                columns={columns}
+                editId={editandoId}
+                editData={editPermisoForm.values}
+                onEditChange={editPermisoForm.handleChange}
+                onSave={handleGuardar}
+                onCancel={handleCancelar}
+                actions={{
+                  render: (p) => (
+                    <div className="flex gap-2 justify-center">
+                      <EditButton onClick={() => handleEditar(p)} />
+                      <DeleteButton
+                        onClick={() => handleEliminar(p.permisoId)}
+                      />
+                    </div>
+                  ),
+                  saveIcon: <SaveButton onClick={handleGuardar} />,
+                  cancelIcon: <CancelButton onClick={handleCancelar} />,
+                }}
+              />
+            )}
+          </section>
         </div>
       </div>
     </PageCrud>

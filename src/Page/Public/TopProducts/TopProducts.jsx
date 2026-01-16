@@ -1,17 +1,3 @@
-/**
- * TopProducts.jsx
- *
- * Funcionalidades clave:
- * 1. Obtiene los productos desde el backend usando React Query.
- * 2. Selecciona aleatoriamente productos destacados y actualiza cada 10 segundos.
- * 3. Permite agregar productos al carrito, actualizando cantidades si ya existen.
- * 4. Utiliza Swiper para mostrar un slider responsivo.
- * 5. Integra visualización adaptada a dark/light mode.
- *
- * Propósito:
- * Resaltar productos estratégicos para incentivar la compra, mejorar la interacción del usuario
- * y generar una experiencia dinámica en la tienda online.
- */
 import React, { useState, useEffect } from "react";
 import GeneralCard from "../../../components/UI/GeneralCard";
 import { useProductos } from "../../../hooks/useProducto";
@@ -20,87 +6,71 @@ import {
   useActualizarCarritoCompras,
   useCarritoCompras,
 } from "../../../hooks/useCarrito";
-
+import { useNavigate } from "react-router-dom";
 import useOffcanvasStore from "../../../store/offcanvasStore";
 import useBalanceStore from "../../../store/balanceStore";
+import useUserStore from "../../../store/userStore";
 
-// Swiper
+import { getRandomItems } from "../../../utils/useRandomProducts";
+import { useAddToCart } from "../../../utils/useAddToCart";
+
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay, Pagination, Navigation } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 
-// 🔹 Selección de productos aleatorios
-const seleccionarProductosAleatorios = (productos, cantidad) => {
-  const barajado = [...productos].sort(() => 0.5 - Math.random());
-  return barajado.slice(0, cantidad);
-};
-
-const TopProducts = ({ usuarioId = 1 }) => {
-  const { data: productos, isLoading, isError } = useProductos();
-  const { data: carritoApi = [] } = useCarritoCompras();
+const TopProducts = () => {
+  /* ===================== DATA ===================== */
+  const { data: productos = [], isLoading, isError } = useProductos();
+  const { data: carrito = [] } = useCarritoCompras();
 
   const { mutateAsync: crearCarrito } = useCrearCarritoCompras();
   const { mutateAsync: actualizarCarrito } = useActualizarCarritoCompras();
 
+  /* ===================== STORES ===================== */
   const { toggleOffcanvas } = useOffcanvasStore();
   const { toggleBalanceo } = useBalanceStore();
+  const { usuarioId } = useUserStore();
+  const navigate = useNavigate();
 
+  /* ===================== STATE ===================== */
   const [productosTop, setProductosTop] = useState([]);
 
-  // 🔹 Actualiza cada 10s los productos destacados
+  /* ===================== BUSINESS LOGIC ===================== */
+  const { addToCart } = useAddToCart({
+    carrito,
+    crearCarrito,
+    actualizarCarrito,
+    usuarioId,
+    toggleOffcanvas,
+    toggleBalanceo,
+  });
+
+  /* ===================== EFFECTS ===================== */
   useEffect(() => {
-    if (productos && productos.length > 0) {
-      setProductosTop(seleccionarProductosAleatorios(productos, 6));
+    if (!productos.length) return;
 
-      const interval = setInterval(() => {
-        setProductosTop(seleccionarProductosAleatorios(productos, 6));
-      }, 10000);
+    // ✔ Selección aleatoria delegada al service
+    setProductosTop(getRandomItems(productos, 6));
 
-      return () => clearInterval(interval);
-    }
+    const interval = setInterval(() => {
+      setProductosTop(getRandomItems(productos, 6));
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [productos]);
-  // Estados de carga y error
+
+  /* ===================== STATES UI ===================== */
   if (isLoading) return <p className="text-center">Cargando productos...</p>;
   if (isError)
     return (
       <p className="text-center text-red-500">Error al cargar productos</p>
     );
 
-  //  Función para agregar productos al carrito
-  const handleAddToCart = async (producto) => {
-    const existing = carritoApi.find(
-      (item) => item.productoId === producto.productoId && item.tallaId === 1
-    );
-
-    if (existing) {
-      // Si el producto ya existe en el carrito, actualizar cantidad y subtotal
-      await actualizarCarrito({
-        carritoId: existing.carritoId,
-        cantidad: existing.cantidad + 1,
-        subTotal: (existing.cantidad + 1) * existing.precioUnitario,
-      });
-    } else {
-      // Si no existe, crear un nuevo item en el carrito
-      await crearCarrito({
-        usuarioId,
-        productoId: producto.productoId,
-        tallaId: 1,
-        cantidad: 1,
-        precioUnitario: producto.precio,
-        subTotal: producto.precio,
-        estado: true,
-      });
-    }
-
-    // Mostrar carrito y actualizar balance
-    toggleOffcanvas(true);
-    toggleBalanceo(true);
-  };
-
+  /* ===================== UI (SIN CAMBIOS) ===================== */
   return (
-    <section className="py-16  dark:bg-gray-900 dark:text-whit">
+    <section className="py-16 dark:bg-gray-900 dark:text-whit">
       <div className="container">
         {/* Encabezado */}
         <div className="text-center mb-12">
@@ -137,8 +107,15 @@ const TopProducts = ({ usuarioId = 1 }) => {
             >
               <GeneralCard
                 producto={producto}
-                onAddToCart={handleAddToCart}
                 compact
+                onAddToCart={(prod, talla) =>
+                  addToCart({ producto: prod, talla })
+                }
+                onViewDetail={() =>
+                  navigate(`/producto/${producto.productoId}`, {
+                    state: { product: producto },
+                  })
+                }
               />
             </SwiperSlide>
           ))}

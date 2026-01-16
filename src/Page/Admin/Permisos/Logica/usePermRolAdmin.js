@@ -22,7 +22,7 @@ import {
   useDeletePermRole,
   useExportarExcelPermRoles,
 } from "../../../../hooks/usePermRol";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const usePermRolAdmin = (nuevoPermRolForm, editPermRolForm) => {
@@ -33,7 +33,7 @@ export const usePermRolAdmin = (nuevoPermRolForm, editPermRolForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelPermRoles();
   // Servicio centralizado de notificaciones UI
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal de datos del carrito (caché integrada)
   const { data: permRoles = [], isLoading } = usePermRoles();
   // Mutaciones CRUD
@@ -45,18 +45,21 @@ export const usePermRolAdmin = (nuevoPermRolForm, editPermRolForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos
     if (!(await nuevoPermRolForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
-
-    crearPermRol.mutate(nuevoPermRolForm.values, {
-      onSuccess: () => {
-        notify.success("PermRol creado correctamente");
-        queryClient.invalidateQueries(["permRoles"]); // sincroniza la vista
-        nuevoPermRolForm.resetForm(); // limpia campos
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearPermRol
+        .mutateAsync(nuevoPermRolForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["permRoles"]);
+          nuevoPermRolForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Iniciar modo edición cargando los datos seleccionados */
@@ -73,86 +76,87 @@ export const usePermRolAdmin = (nuevoPermRolForm, editPermRolForm) => {
   /** Guardar cambios de edición */
   const handleGuardar = async () => {
     if (!(await editPermRolForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
     const dataEditar = { permRolId: editandoId, ...editPermRolForm.values };
 
-    updatePermRol.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("PermRol actualizado correctamente");
-        setEditandoId(null);
-        editPermRolForm.resetForm();
-        queryClient.invalidateQueries(["permRoles"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updatePermRol
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editPermRolForm.resetForm();
+          queryClient.invalidateQueries(["permRoles"]);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar edición restableciendo estado */
   const handleCancelar = () => {
     setEditandoId(null);
     editPermRolForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar un carrito con confirmación del usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este permiso Rol?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deletePermRol.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("PermRol eliminado correctamente");
-
-          // Si el elemento eliminado estaba en edición, salir del modo edición
+    notify.deletePromise(
+      deletePermRol
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editPermRolForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoPermRolForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["permRoles"], (old) =>
-            old ? old.filter((c) => c.permRolId !== id) : []
+            old ? old.filter((r) => r.permRolId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["permRoles"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Descargar Excel */
   const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "permRol.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "permRol.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
-
   return {
     permRoles,
     isLoading,

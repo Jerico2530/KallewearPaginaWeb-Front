@@ -29,9 +29,7 @@ const useSizeFilterStore = create((set) => ({
 
     // Finaliza la barra de carga con un pequeño retardo
     if (ref?.current) {
-      setTimeout(() => {
-        ref.current.complete();
-      }, 50);
+      setTimeout(() => {ref.current.complete();}, 50);
     }
   },
 }));

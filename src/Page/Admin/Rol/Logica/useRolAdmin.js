@@ -22,7 +22,7 @@ import {
   useDeleteRol,
   useExportarExcelRoles,
 } from "../../../../hooks/useRol";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useRolAdmin = (nuevoRolForm, editRolForm) => {
@@ -33,14 +33,14 @@ export const useRolAdmin = (nuevoRolForm, editRolForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelRoles();
   // Servicio global de notificaciones
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal: obtiene todos los anuncios desde la API
   const { data: rolesData = [], isLoading } = useRoles();
   // Mutaciones CRUD
   const crearRol = useCreateRol();
   const updateRol = useUpdateRol();
   const deleteRol = useDeleteRol();
-  
+
   // Ordenar roles: primero por fechaRegistro y luego por nombreRol
   const roles = rolesData.slice().sort((a, b) => {
     const dateA = new Date(a.fechaRegistro).getTime();
@@ -52,19 +52,21 @@ export const useRolAdmin = (nuevoRolForm, editRolForm) => {
   /** Crear rol */
   const handleCrear = async () => {
     if (!(await nuevoRolForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
-
-    crearRol.mutate(nuevoRolForm.values, {
-      // Evita enviar datos inválidos a la API
-      onSuccess: () => {
-        notify.success("Rol creado correctamente");
-        queryClient.invalidateQueries(["rol"]);// sincroniza lista
-        nuevoRolForm.resetForm();// limpia formulario
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearRol
+        .mutateAsync(nuevoRolForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["rol"]);
+          nuevoRolForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Inicia edición cargando datos existentes en el formulario */
@@ -80,85 +82,88 @@ export const useRolAdmin = (nuevoRolForm, editRolForm) => {
   /** Guardar cambios del rol editado */
   const handleGuardar = async () => {
     if (!(await editRolForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
-    // Se envía el ID que se está editando más los valores actualizados
+
     const dataEditar = { rolId: editandoId, ...editRolForm.values };
 
-    updateRol.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Rol actualizado correctamente");
-        setEditandoId(null);
-        editRolForm.resetForm();
-        queryClient.invalidateQueries(["rol"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateRol.mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editRolForm.resetForm();
+          queryClient.invalidateQueries(["rol"]);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar modo edición sin guardar cambios */
   const handleCancelar = () => {
     setEditandoId(null);
     editRolForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar rol  con confirmación de usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este rol?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteRol.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Rol eliminado correctamente");
-
-          // Si el anuncio eliminado estaba siendo editado, reiniciar estado
+    notify.deletePromise(
+      deleteRol.mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editRolForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoRolForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["roles"], (old) =>
-            old ? old.filter((c) => c.rolId !== id) : []
+            old ? old.filter((r) => r.rolId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["roles"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de anuncios en un archivo Excel */
-  const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+  const descargarExcel = () => {
+  notify.exportPromise(
+    exportarExcel
+      .mutateAsync()
+      .then((response) => {
+        const url = window.URL.createObjectURL(
+          new Blob([response.data])
+        );
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "roles.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "rol.xlsx"); // nombre del archivo
+        document.body.appendChild(link);
+        link.click();
 
-      document.body.appendChild(link);
-      link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch((error) => {
+        handleApiError(error, notify);
+        throw error; // 🔑 NECESARIO para toast.promise
+      })
+  );
+};
 
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
-  };
 
   return {
     roles,

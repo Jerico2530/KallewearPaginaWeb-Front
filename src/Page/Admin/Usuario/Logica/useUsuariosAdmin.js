@@ -23,7 +23,7 @@ import {
   useDeleteUsuario,
   useExportarExcelUsuarios,
 } from "../../../../hooks/useUsuario";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useUsuariosAdmin = (nuevoUsuarioForm, editUsuarioForm) => {
@@ -34,7 +34,7 @@ export const useUsuariosAdmin = (nuevoUsuarioForm, editUsuarioForm) => {
   // Mutación para exportar Excel
   const exportarExcel = useExportarExcelUsuarios();
   // Servicio centralizado de notificaciones UI
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal de datos del carrito (caché integrada)
   const { data: usuariosData = [], isLoading } = useUsuarios();
   // Mutaciones CRUD
@@ -54,17 +54,20 @@ export const useUsuariosAdmin = (nuevoUsuarioForm, editUsuarioForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos
     if (!(await nuevoUsuarioForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
-    crearUsuario.mutate(nuevoUsuarioForm.values, {
-      onSuccess: () => {
-        notify.success("Usuario creado correctamente");
-        queryClient.invalidateQueries(["usuario"]); // sincroniza la vista
-        nuevoUsuarioForm.resetForm(); // limpia campos
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearUsuario.mutateAsync(nuevoUsuarioForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["usuario"]);
+          nuevoUsuarioForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Iniciar modo edición cargando los datos seleccionados */
@@ -85,85 +88,87 @@ export const useUsuariosAdmin = (nuevoUsuarioForm, editUsuarioForm) => {
   /** Guardar cambios de edición */
   const handleGuardar = async () => {
     if (!(await editUsuarioForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError(); 
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
     const dataEditar = { usuarioId: editandoId, ...editUsuarioForm.values };
 
-    updateUsuario.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Usuario actualizado correctamente");
-        setEditandoId(null);
-        editUsuarioForm.resetForm();
-        queryClient.invalidateQueries(["usuario"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+     notify.updatePromise(
+      updateUsuario.mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editUsuarioForm.resetForm();
+          queryClient.invalidateQueries(["usuario"]);
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar edición restableciendo estado */
   const handleCancelar = () => {
     setEditandoId(null);
     editUsuarioForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este usuario?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteUsuario.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Usuario eliminado correctamente");
-
-          // Si el elemento eliminado estaba en edición, salir del modo edición
+    notify.deletePromise(
+      deleteUsuario.mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editUsuarioForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoUsuarioForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["usuarios"], (old) =>
-            old ? old.filter((c) => c.usuarioId !== id) : []
+            old ? old.filter((u) => u.usuarioId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["usuarios"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de anuncios en un archivo Excel */
-  const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+  const descargarExcel = () => {
+  notify.exportPromise(
+    exportarExcel
+      .mutateAsync()
+      .then((response) => {
+        const url = window.URL.createObjectURL(
+          new Blob([response.data])
+        );
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "usuarios.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "usuarios.xlsx"); // nombre del archivo
+        document.body.appendChild(link);
+        link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
-  };
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch((error) => {
+        handleApiError(error, notify);
+        throw error; // 🔑 NECESARIO para toast.promise
+      })
+  );
+};
 
   return {
     usuarios,

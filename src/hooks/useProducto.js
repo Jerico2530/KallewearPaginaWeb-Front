@@ -28,7 +28,7 @@ import {
 // Consulta de producto con caché y revalidación automática
 export const useProductos = () =>
   useQuery({
-    ueryKey: ["productos"], // Clave única para el manejo en caché
+    queryKey: ["productos"], // Clave única para el manejo en caché
     queryFn: getProductos, // Función encargada de obtener los datos desde el API
     staleTime: 1000 * 60 * 5, // Tiempo en el que los datos son considerados frescos
   });

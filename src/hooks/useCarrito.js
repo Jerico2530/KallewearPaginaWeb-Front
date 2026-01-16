@@ -38,10 +38,6 @@ export const useCarritoComprasUsuario = (usuarioId) =>
     queryFn: () => ObtenerTodosLosCarritoCompraUsuarioAsync(usuarioId),
     enabled: !!usuarioId,
     staleTime: 0,
-    select: (data) => ({
-      items: data.items || [], // productos del carrito
-      totalCarrito: data.totalCarrito || 0, // total calculado
-    }),
   });
 
 // Creación de un nuevo carrito

@@ -29,6 +29,7 @@ const useUserStore = create((set) => ({
   apellidoCompleto: localStorage.getItem("apellidoCompleto") || "Invitados",
   dni: localStorage.getItem("dni") || null,
   correoElectronico: localStorage.getItem("correoElectronico") || "invitado@demo.com",
+  imagen: localStorage.getItem("imagen") || null, // <-- NUEVO CAMPO
   isGuest: JSON.parse(localStorage.getItem("isGuest") ?? "true"),
 
   // Guardar usuario logueado
@@ -44,6 +45,7 @@ const useUserStore = create((set) => ({
     localStorage.setItem("apellidoCompleto", usuario.apellidoCompleto || "");
     localStorage.setItem("dni", usuario.dni || "");
     localStorage.setItem("correoElectronico", usuario.correoElectronico || "");
+    localStorage.setItem("imagen", usuario.imagen || "");
     localStorage.setItem("isGuest", "false");
 
     set({
@@ -55,6 +57,7 @@ const useUserStore = create((set) => ({
       apellidoCompleto: usuario.apellidoCompleto || "",
       dni: usuario.dni || "",
       correoElectronico: usuario.correoElectronico || "",
+      imagen: usuario.imagen || "",
       isGuest: false,
     });
   },
@@ -75,6 +78,7 @@ const useUserStore = create((set) => ({
     localStorage.setItem("apellidoCompleto", usuario.apellidoCompleto || "Invitados");
     localStorage.setItem("dni", usuario.dni || "99999999");
     localStorage.setItem("correoElectronico", usuario.correoElectronico || "invitado@demo.com");
+    localStorage.setItem("imagen", usuario.imagen || "https://i.imgur.com/GpxMW2T.png");
     localStorage.setItem("isGuest", "true");
 
     set({
@@ -86,6 +90,7 @@ const useUserStore = create((set) => ({
       apellidoCompleto: usuario.apellidoCompleto || "Invitados",
       dni: usuario.dni || "99999999",
       correoElectronico: usuario.correoElectronico || "invitado@demo.com",
+      imagen: usuario.imagen || "https://i.imgur.com/GpxMW2T.png",
       isGuest: true,
     });
   },
@@ -106,6 +111,7 @@ const useUserStore = create((set) => ({
     localStorage.setItem("apellidoCompleto", usuario.apellidoCompleto || "Invitados");
     localStorage.setItem("dni", usuario.dni || "99999999");
     localStorage.setItem("correoElectronico", usuario.correoElectronico || "invitado@demo.com");
+    localStorage.setItem("imagen", usuario.imagen || "https://i.imgur.com/GpxMW2T.png");
     localStorage.setItem("isGuest", "true");
 
     set({
@@ -117,6 +123,7 @@ const useUserStore = create((set) => ({
       apellidoCompleto: usuario.apellidoCompleto || "Invitados",
       dni: usuario.dni || "99999999",
       correoElectronico: usuario.correoElectronico || "invitado@demo.com",
+      imagen: usuario.imagen || "https://i.imgur.com/GpxMW2T.png",
       isGuest: true,
     });
   },

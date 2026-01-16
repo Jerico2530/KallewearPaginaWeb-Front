@@ -26,6 +26,7 @@ import {
   deletePagos,
   getPagosById,
   exportarExcelPagos,
+  getPagosUsuario
 } from "../api/Pago";
 
 // Consulta principal: recupera todos los pagos
@@ -36,6 +37,15 @@ export const usePagos = () => {
     staleTime: 1000 * 60 * 5, // Tiempo en que los datos se consideran frescos
   });
 };
+
+// 🔹 Pagos por usuario
+export const usePagosUsuario = (usuarioId) =>
+  useQuery({
+    queryKey: ["pagos-usuario", usuarioId],
+    queryFn: () => getPagosUsuario(usuarioId),
+    enabled: !!usuarioId, 
+    staleTime: 1000 * 60 * 5,
+  });
 
 // Consulta de un pago específico según su ID
 export const usePagoById = (pagoId) =>

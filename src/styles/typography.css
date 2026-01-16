@@ -1,0 +1,108 @@
+@layer components {
+
+  /* =========================
+     BODY / TEXTOS GENERALES
+  ========================== */
+  .text-body {
+    @apply text-base text-gray-700 dark:text-gray-300 leading-relaxed;
+  }
+
+  .text-secondary {
+    @apply text-sm text-gray-500 dark:text-gray-400;
+  }
+
+  .text-muted {
+    @apply text-xs text-gray-400 dark:text-gray-500;
+  }
+
+  /* =========================
+     HEADINGS / TÍTULOS
+  ========================== */
+  .heading-page {
+    @apply text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white;
+  }
+
+  .heading-hero {
+    @apply text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white;
+  }
+
+  .heading-section {
+    @apply text-2xl font-bold text-gray-900 dark:text-white;
+  }
+
+  .heading-subsection {
+    @apply text-xl font-semibold text-gray-800 dark:text-gray-100;
+  }
+
+  .heading-block {
+    @apply text-lg font-semibold text-gray-800 dark:text-gray-100;
+  }
+
+  /* =========================
+     LABELS / FORMULARIOS / UI
+  ========================== */
+  .label {
+    @apply text-sm font-medium text-gray-700 dark:text-gray-300;
+  }
+
+  .placeholder {
+    @apply text-sm text-gray-400;
+  }
+
+  .hint {
+    @apply text-xs text-gray-500 dark:text-gray-400;
+  }
+
+  .badge {
+    @apply text-xs font-semibold uppercase tracking-wide;
+  }
+
+  /* =========================
+     TABLAS / LISTAS
+  ========================== */
+  .table-text {
+    @apply text-sm text-gray-700 dark:text-gray-300;
+  }
+
+  .table-header {
+    @apply text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400;
+  }
+
+  .table-important {
+    @apply text-base font-medium text-gray-900 dark:text-white;
+  }
+
+  /* =========================
+     BOTONES
+  ========================== */
+  .btn-text {
+    @apply text-sm font-medium;
+  }
+
+  .btn-text-primary {
+    @apply text-base font-semibold;
+  }
+
+  .btn-text-small {
+    @apply text-xs font-medium;
+  }
+
+  /* =========================
+     MENSAJES / ESTADOS
+  ========================== */
+  .text-error {
+    @apply text-sm text-red-600 dark:text-red-400;
+  }
+
+  .text-warning {
+    @apply text-sm text-yellow-600 dark:text-yellow-400;
+  }
+
+  .text-success {
+    @apply text-sm text-green-600 dark:text-green-400;
+  }
+
+  .text-notification {
+    @apply text-sm text-gray-700 dark:text-gray-200;
+  }
+}

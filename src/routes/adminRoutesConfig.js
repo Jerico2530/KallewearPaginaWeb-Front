@@ -26,6 +26,11 @@ import PagoPageAdmin from "../Page/Admin/Pago/PagoPage";
 import CarritoComprasPageAdmin from "../Page/Admin/CarritoCompra/CarritoCompraPage";
 import OrdenesPageAdmin from "../Page/Admin/Orden/OrdenPage";
 import OrdenDetallesPageAdmin from "../Page/Admin/OrdenDetalle/OrdenDetallePage";
+import VerPerfil from "../Page/Admin/VerPerfil/VerPerfil"
+import CarroPrincipal from "../Page/Public/Cart/CarroPrincipal"
+import verPedido from "../Page/Admin/VerPerfil/verPedido"
+import verDireccion from "../Page/Admin/VerPerfil/verDireccion";
+import VerPago from "../Page/Admin/VerPerfil/verPago";
 
 import { Children } from "react";
 
@@ -57,6 +62,18 @@ export const adminRoutesConfig = [
   { path: "/carritoCompraadmin", element:  CarritoComprasPageAdmin , permisos: [" Pago.CarritoCompra", "CarritoCompra.VerDetalle", "CarritoCompra.Crear", "CarritoCompra.Eliminar", "CarritoCompra.Actualizar", "CarritoCompra.ActualizarParcial"] },
   { path: "/ordentalleadmin", element:  OrdenDetallesPageAdmin , permisos: [" OrdenDetalle.CarritoCompra", "OrdenDetalle.VerDetalle", "OrdenDetalle.Crear", "OrdenDetalle.Eliminar", "OrdenDetalle.Actualizar", "OrdenDetalle.ActualizarParcial"] },
   { path: "/ordennadmin", element:  OrdenesPageAdmin , permisos: [" Orden.CarritoCompra", "Orden.VerDetalle", "Orden.Crear", "Orden.Eliminar", "Orden.Actualizar", "Orden.ActualizarParcial"] },
+  { path: "/verPerilPersonal", element:  VerPerfil , permisos:  null},
+  { path: "/verCarritos", element:  CarroPrincipal , permisos:  null},
+  { path: "/misPedidos", element:  verPedido , permisos:  null},
+  {path: "/misPeril", element:  VerPerfil , permisos:  null},
+  {path: "/misDireccion", element:  verDireccion , permisos:  null},
+  {path: "/misPagos", element:  VerPago , permisos:  null},
+  
+
+ 
+
+
+
 
 
 

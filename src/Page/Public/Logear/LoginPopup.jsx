@@ -1,77 +1,47 @@
-/**
- * LoginPopup.jsx
- *
- * Funcionalidades clave:
- * 1. Mostrar un popup modal de inicio de sesión con animaciones suaves.
- * 2. Validación de campos mediante Yup y manejo de errores del backend.
- * 3. Notificaciones de éxito o error usando notistack.
- * 4. Integración con hook de login personalizado para autenticar usuarios.
- * 5. Permite alternar entre login y registro mediante props.
- *
- * Propósito:
- * Proveer una experiencia de inicio de sesión fluida y segura, mejorando la interacción
- * y la conversión de usuarios en la plataforma.
- */
 import React, { useState } from "react";
 import { IoCloseOutline } from "react-icons/io5";
 import { FaEnvelope, FaLock } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLogin } from "../../../hooks/useLogin";
 import { loginValidacion } from "../../../validation/loginValidacion";
-import { useSnackbar } from "notistack";
+import { useNotifier } from "../../../utils/useNotifier";
+import { NOTIFICACIONES } from "../../../constants/notificationsConstantes";
 
-const LoginPopup = ({
-  loginPopup,
-  setLoginPopup,
-  setRegisterPopup,
-  onSuccess,
-}) => {
-  // Estados de los campos del formulario y errores de validación
+const LoginPopup = ({ loginPopup, setLoginPopup, setRegisterPopup, onSuccess }) => {
   const [correoElectronico, setCorreoElectronico] = useState("");
   const [contraseña, setContraseña] = useState("");
   const [errors, setErrors] = useState({});
-  const { enqueueSnackbar } = useSnackbar();
-  // Hook personalizado para ejecutar la mutación de login
+  const { success, error } = useNotifier();
+
   const { mutate: login, isPending } = useLogin();
-  // Función para manejar el envío del formulario
+
   const handleLogin = async () => {
     try {
       setErrors({});
-      // Validación de Yup
-      await loginValidacion.validate(
-        { correoElectronico, contraseña },
-        { abortEarly: false }
-      );
 
-      // Ejecuta login usando el hook personalizado
-      login(
-        { correoElectronico, contraseña },
-        {
-          onSuccess: () => {
-            enqueueSnackbar("¡Login exitoso!", { variant: "success" });
-            setLoginPopup(false);
-            if (onSuccess) onSuccess();
-          },
-          onError: (err) => {
-            if (err?.response?.data?.errors) {
-              setErrors(err.response.data.errors);
-            } else {
-              enqueueSnackbar(
-                err?.response?.data?.message || "Credenciales incorrectas",
-                { variant: "error" }
-              );
-            }
-          },
-        }
-      );
+      // Validación Yup
+      await loginValidacion.validate({ correoElectronico, contraseña }, { abortEarly: false });
+
+      // Login usando hook
+      login({ correoElectronico, contraseña }, {
+        onSuccess: () => {
+          success(NOTIFICACIONES.LOGIN.SUCCESS); 
+          setLoginPopup(false);
+          if (onSuccess) onSuccess();
+        },
+        onError: (err) => {
+          if (err?.response?.data?.errors) {
+            setErrors(err.response.data.errors);
+          } else {
+            error(err?.response?.data?.message || NOTIFICACIONES.LOGIN.ERROR); 
+          }
+        },
+      });
     } catch (validationError) {
-      // Manejo de errores de validación Yup
       if (validationError.name === "ValidationError") {
         const newErrors = {};
         validationError.inner.forEach((err) => {
           newErrors[err.path] = err.message;
-          // Opcional: mostrar alert global también
-          enqueueSnackbar(err.message, { variant: "error" });
         });
         setErrors(newErrors);
       }
@@ -93,7 +63,7 @@ const LoginPopup = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
-            className="absolute inset-0 bg-gradient-to-r from-primary/40 via-secondary/30 to-primary/40 backdrop-blur-md"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
           />
 
           {/* Popup */}
@@ -117,7 +87,6 @@ const LoginPopup = ({
 
             {/* Formulario */}
             <div className="flex flex-col gap-4">
-              {/* Correo */}
               <div className="relative">
                 <FaEnvelope className="absolute left-3 top-3 text-gray-400" />
                 <input
@@ -125,22 +94,15 @@ const LoginPopup = ({
                   placeholder="Correo electrónico"
                   value={correoElectronico}
                   onChange={(e) => setCorreoElectronico(e.target.value)}
-                  className={`w-full pl-10 pr-3 py-3 border rounded-full transition-all duration-200 
-                    ${
-                      errors.correoElectronico
-                        ? "border-red-500 focus:ring-red-500"
-                        : "border-gray-300 dark:border-gray-600 focus:ring-primary"
-                    }
+                  className={`w-full pl-10 pr-3 py-3 border rounded-full transition-all duration-200
+                    ${errors.correoElectronico ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600 focus:ring-primary"}
                     dark:bg-gray-800 text-gray-900 dark:text-white`}
                 />
                 {errors.correoElectronico && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {errors.correoElectronico}
-                  </p>
+                  <p className="text-sm text-red-500 mt-1">{errors.correoElectronico}</p>
                 )}
               </div>
 
-              {/* Contraseña */}
               <div className="relative">
                 <FaLock className="absolute left-3 top-3 text-gray-400" />
                 <input
@@ -148,22 +110,15 @@ const LoginPopup = ({
                   placeholder="Contraseña"
                   value={contraseña}
                   onChange={(e) => setContraseña(e.target.value)}
-                  className={`w-full pl-10 pr-3 py-3 border rounded-full transition-all duration-200 
-                    ${
-                      errors.contraseña
-                        ? "border-red-500 focus:ring-red-500"
-                        : "border-gray-300 dark:border-gray-600 focus:ring-primary"
-                    }
+                  className={`w-full pl-10 pr-3 py-3 border rounded-full transition-all duration-200
+                    ${errors.contraseña ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600 focus:ring-primary"}
                     dark:bg-gray-800 text-gray-900 dark:text-white`}
                 />
                 {errors.contraseña && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {errors.contraseña}
-                  </p>
+                  <p className="text-sm text-red-500 mt-1">{errors.contraseña}</p>
                 )}
               </div>
 
-              {/* Botón */}
               <button
                 onClick={handleLogin}
                 disabled={isPending}

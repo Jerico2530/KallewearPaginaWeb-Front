@@ -23,7 +23,7 @@ import {
   useDeleteAnuncio,
   useExportarExcelAnuncios,
 } from "../../../../hooks/useAnuncio";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useAnunciosAdmin = (nuevoAnuncioForm, editAnuncioForm) => {
@@ -34,7 +34,7 @@ export const useAnunciosAdmin = (nuevoAnuncioForm, editAnuncioForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelAnuncios();
   // Servicio global de notificaciones
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal: obtiene todos los anuncios desde la API
   const { data: anuncios = [], isLoading } = useAnuncios();
   // Mutaciones CRUD
@@ -46,18 +46,20 @@ export const useAnunciosAdmin = (nuevoAnuncioForm, editAnuncioForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos a la API
     if (!(await nuevoAnuncioForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
-
-    crearAnuncio.mutate(nuevoAnuncioForm.values, {
-      onSuccess: () => {
-        notify.success("Anuncio creado correctamente");
-        queryClient.invalidateQueries(["anuncios"]); // sincroniza lista
-        nuevoAnuncioForm.resetForm(); // limpia formulario
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearAnuncio.mutateAsync(nuevoAnuncioForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["anuncios"]);
+          nuevoAnuncioForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Inicia edición cargando datos existentes en el formulario */
@@ -78,85 +80,87 @@ export const useAnunciosAdmin = (nuevoAnuncioForm, editAnuncioForm) => {
   /** Guardar cambios del anuncio editado */
   const handleGuardar = async () => {
     if (!(await editAnuncioForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      nonotify.validationError(); 
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
     const dataEditar = { anuncioId: editandoId, ...editAnuncioForm.values };
 
-    updateAnuncio.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Anuncio actualizado correctamente");
-        setEditandoId(null);
-        editAnuncioForm.resetForm();
-        queryClient.invalidateQueries(["anuncios"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateAnuncio.mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editAnuncioForm.resetForm();
+          queryClient.invalidateQueries(["anuncios"]);
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar modo edición sin guardar cambios */
   const handleCancelar = () => {
     setEditandoId(null);
     editAnuncioForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
-  /** Eliminar anuncio con confirmación de usuario */
+  /** Eliminar anuncio con confirmación de anuncio */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este Anuncio?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteAnuncio.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Anuncio eliminado correctamente");
-
-          // Si el anuncio eliminado estaba siendo editado, reiniciar estado
+    notify.deletePromise(
+      deleteAnuncio.mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editAnuncioForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoAnuncioForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["anuncios"], (old) =>
-            old ? old.filter((c) => c.anuncioId !== id) : []
+            old ? old.filter((u) => u.anuncioId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["anuncios"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de anuncios en un archivo Excel */
-  const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+  const descargarExcel = () => {
+  notify.exportPromise(
+    exportarExcel
+      .mutateAsync()
+      .then((response) => {
+        const url = window.URL.createObjectURL(
+          new Blob([response.data])
+        );
 
-      // Convertir la respuesta binaria en archivo descargable
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "anuncio.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "anuncio.xlsx"); // nombre del archivo
+        document.body.appendChild(link);
+        link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
-  };
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch((error) => {
+        handleApiError(error, notify);
+        throw error; 
+      })
+  );
+};
 
   return {
     anuncios,

@@ -22,7 +22,7 @@ import {
   useActualizarCarritoCompras,
   useEliminarCarritoCompras,
 } from "../../../../hooks/useCarrito";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useCarritoComprasAdmin = (
@@ -34,7 +34,7 @@ export const useCarritoComprasAdmin = (
   // React Query: acceso completo a la caché para revalidación manual
   const queryClient = useQueryClient();
   // Servicio centralizado de notificaciones UI
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal de datos del carrito (caché integrada)
   const { data: carritoCompras = [], isLoading } = useCarritoCompras();
   // Mutaciones CRUD

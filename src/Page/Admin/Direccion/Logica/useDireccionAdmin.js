@@ -22,7 +22,7 @@ import {
   useEliminarDirecciones,
   useExportarDirecciones,
 } from "../../../../hooks/useDireccion";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useDireccionAdmin = (nuevoDireccionForm, editDireccionForm) => {
@@ -33,7 +33,7 @@ export const useDireccionAdmin = (nuevoDireccionForm, editDireccionForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarDirecciones();
   // Servicio global de notificaciones
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal: obtiene todos los anuncios desde la API
   const { data: direccionesData = [], isLoading } = useDirecciones();
   // Mutaciones CRUD
@@ -56,18 +56,22 @@ export const useDireccionAdmin = (nuevoDireccionForm, editDireccionForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos
     if (!(await nuevoDireccionForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+       notify.validationError();
       return;
     }
 
-    crearDireccion.mutate(nuevoDireccionForm.values, {
-      onSuccess: () => {
-        notify.success("Direccion creado correctamente");
-        queryClient.invalidateQueries(["direcciones"]);
-        nuevoDireccionForm.resetForm();
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearDireccion
+        .mutateAsync(nuevoDireccionForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["direcciones"]);
+          nuevoDireccionForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
    /** Iniciar modo edición cargando los datos seleccionados */
@@ -88,86 +92,87 @@ export const useDireccionAdmin = (nuevoDireccionForm, editDireccionForm) => {
   /** Guardar cambios de edición */
   const handleGuardar = async () => {
     if (!(await editDireccionForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
     const dataEditar = { direccionId: editandoId, ...editDireccionForm.values };
 
-    updateDireccion.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Direccion actualizado correctamente");
-        setEditandoId(null);
-        editDireccionForm.resetForm();
-        queryClient.invalidateQueries(["direcciones"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateDireccion
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editDireccionForm.resetForm();
+          queryClient.invalidateQueries(["direcciones"]);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar edición restableciendo estado */
   const handleCancelar = () => {
     setEditandoId(null);
     editDireccionForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar un direccion con confirmación del usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este direccion?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteDireccion.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Direccion eliminado correctamente");
-
-          // Si el elemento eliminado estaba en edición, salir del modo edición
+    notify.deletePromise(
+      deleteDireccion
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editDireccionForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoDireccionForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["direcciones"], (old) =>
-            old ? old.filter((c) => c.direccionId !== id) : []
+            old ? old.filter((r) => r.direccionId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["direcciones"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Descargar Excel */
   const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "direccion.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "direccion.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
-
   return {
     Direcciones,
     isLoading,

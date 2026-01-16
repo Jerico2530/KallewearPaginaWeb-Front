@@ -22,66 +22,61 @@ import Button from "./Button";
 
 const GeneralCard = ({
   producto, // Datos del producto a mostrar
-  onAddToCart, // Acción principal: agregar al carrito
+  onViewDetail,
   compact = false, // Controla el tamaño según el contexto (Swiper o grid)
 }) => {
   return (
-    // Tarjeta interactiva con animaciones y diseño responsivo
     <div
       className={`${
-        compact
-          ? "max-w-[280px] h-[400px]" // 🔹 tamaño fijo para Swiper
-          : "max-w-[320px] h-[440px]" // 🔹 tamaño fijo para grid o catálogo
-      } w-full mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-md 
-      hover:shadow-xl hover:-translate-y-1 transition-all duration-300 
-      flex flex-col justify-between overflow-hidden`}
+        compact ? "max-w-[280px] h-[400px]" : "max-w-[320px] h-[440px]"
+      } w-full mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-md
+      hover:shadow-xl hover:-translate-y-1 transition-all duration-300
+      flex flex-col overflow-hidden`}
     >
-      {/* Sección de imagen */}
+      {/* ================= IMAGEN ================= */}
       <div
-        className={`relative ${
-          compact ? "h-44" : "h-52"
-        } flex items-center justify-center bg-gray-100 dark:bg-gray-700 overflow-hidden`}
+        className={`relative ${compact ? "h-44" : "h-52"}
+        flex items-center justify-center bg-gray-100 dark:bg-gray-700
+        cursor-pointer`}
+        onClick={onViewDetail} // ✅ MISMA FUNCIÓN
       >
         <img
           src={producto.imagen}
           alt={producto.nombre}
-          className="h-40 object-contain transform group-hover:scale-110 duration-300 drop-shadow-md"
+          className="h-40 object-contain drop-shadow-md"
         />
       </div>
 
-      {/* Información del producto */}
-      <div className="p-4 flex flex-col justify-between flex-1 text-center">
-        {/* Texto principal */}
-        <div className="flex flex-col gap-2 flex-grow">
-          {/* Estrellas demostrativas */}
-          <div className="flex justify-center gap-1 text-yellow-400">
-            {[...Array(4)].map((_, i) => (
-              <FaStar key={i} className="animate-pulse" />
-            ))}
-          </div>
-
-          {/* Nombre del producto */}
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white line-clamp-2 min-h-[48px]">
-            {/* 🔹 2 líneas exactas para mantener altura */}
-            {producto.nombre}
-          </h2>
-
-          {/* Precio */}
-          <p className="text-primary font-bold text-lg">
-            S/ {producto.precio?.toFixed(2)}
-          </p>
+      {/* ================= INFO ================= */}
+      <div className="p-4 flex flex-col flex-1 text-center">
+        {/* ⭐ Rating */}
+        <div className="flex justify-center gap-1 text-yellow-400 mb-2">
+          {[...Array(4)].map((_, i) => (
+            <FaStar key={i} />
+          ))}
         </div>
 
-        {/* Botón */}
-        <div className="mt-4">
-          <Button
-            onClick={() => onAddToCart(producto)}
-            icon={BsCartPlus}
-            className="w-full"
-          >
-            Agregar
-          </Button>
-        </div>
+        {/* 🏷 Nombre */}
+        <h2
+          className="text-base font-semibold text-gray-900 dark:text-white
+          line-clamp-2 min-h-[48px] mb-2"
+        >
+          {producto.nombre}
+        </h2>
+
+        {/* 💰 Precio */}
+        <p className="text-primary font-bold text-lg mb-4">
+          S/ {producto.precio?.toFixed(2)}
+        </p>
+
+        {/* ================= CTA ================= */}
+        <Button
+          onClick={onViewDetail} 
+          className="w-full mt-auto"
+        >
+          Ver producto
+        </Button>
+
       </div>
     </div>
   );

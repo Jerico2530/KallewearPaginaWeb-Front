@@ -22,6 +22,7 @@ import AOS from "aos";
 import "aos/dist/aos.css";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import ScrollToTop from "./utils/ScrollToTop";
 
 import useUserStore from "./store/userStore";
 import usePopupStore from "./store/popupStore";
@@ -33,6 +34,8 @@ import Popup from "./components/Shared/Popup/Popup";
 import LoginPopup from "./Page/Public/Logear/LoginPopup";
 import RegisterPopup from "./Page/Public/Logear/RegisterPopup";
 import SidebarOffCanvas from "./Page/Public/Cart/SidebarOffCanvas";
+
+import ToastProvider from "./components/UI/ToastProvider"; 
 
 import Hero from "./components/Shared/Hero/Hero";
 import TopProducts from "./Page/Public/TopProducts/TopProducts";
@@ -100,7 +103,7 @@ const App = () => {
         handleOrderPopup={() => setOrderPopup(true)}
         handleLoginPopup={() => setLoginPopup(true)}
       />
-
+      <ScrollToTop />
       <Routes>
         <Route
           path="/"
@@ -167,8 +170,7 @@ const App = () => {
         setLoginPopup={setLoginPopup}
       />
       <SidebarOffCanvas />
-
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastProvider />
     </div>
   );
 };

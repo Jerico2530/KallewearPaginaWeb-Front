@@ -23,8 +23,8 @@ const FrecuentesPage = () => {
   const { data: preguntas, isLoading, isError } = usePreguntas();
 
   // Alterna la visualización de la respuesta de la pregunta seleccionada
-  const togglePregunta = (index) => {
-    setAbierta(abierta === index ? null : index);
+  const togglePregunta = (preguntaId) => {
+    setAbierta(abierta === preguntaId ? null : preguntaId);
   };
 
   // Manejo de estado de carga
@@ -65,14 +65,14 @@ const FrecuentesPage = () => {
         </h1>
 
         <div className="space-y-5">
-          {preguntas.map((item, index) => (
+          {preguntas.map((item) => (
             <div
               key={item.preguntaId}
               // 🔹 Tarjeta: fondo blanco en light, gris oscuro en dark, sombra adaptada
               className="bg-white dark:bg-gray-800 rounded-2xl shadow-md dark:shadow-gray-700 overflow-hidden transition hover:shadow-lg dark:hover:shadow-gray-600"
             >
               <button
-                onClick={() => togglePregunta(index)}
+                onClick={() => togglePregunta(item.preguntaId)}
                 // Botón: fondo gris claro en light, más oscuro en dark, hover adaptado
                 className="w-full flex justify-between items-center p-5 bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 hover:bg-gray-200 transition text-left"
               >
@@ -80,12 +80,16 @@ const FrecuentesPage = () => {
                   {item.preguntas}
                 </span>
                 <span className="text-gray-700 dark:text-gray-300">
-                  {abierta === index ? <FaChevronUp /> : <FaChevronDown />}
+                  {abierta === item.preguntaId ? (
+                    <FaChevronUp />
+                  ) : (
+                    <FaChevronDown />
+                  )}
                 </span>
               </button>
 
               {/* Respuesta desplegable */}
-              {abierta === index && (
+              {abierta === item.preguntaId && (
                 <div className="p-5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-t border-gray-200 dark:border-gray-600 animate-fade-in">
                   {item.respuesta}
                 </div>

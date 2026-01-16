@@ -22,7 +22,7 @@ import {
   useDeleteSucursal,
   useExportarExcelSucursales,
 } from "../../../../hooks/useSucursal";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useSucursalAdmin = (nuevoSucursalForm, editSucursalForm) => {
@@ -33,7 +33,7 @@ export const useSucursalAdmin = (nuevoSucursalForm, editSucursalForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelSucursales();
   // Servicio global de notificaciones
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal: obtiene todos los anuncios desde la API
   const { data: sucursalsData = [], isLoading } = useSucursales();
   // Mutaciones CRUD
@@ -53,20 +53,23 @@ export const useSucursalAdmin = (nuevoSucursalForm, editSucursalForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos a la API
     if (!(await nuevoSucursalForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
 
-    crearSucursal.mutate(nuevoSucursalForm.values, {
-      onSuccess: () => {
-        notify.success("Sucursal creado correctamente");
-        queryClient.invalidateQueries(["sucursales"]);
-        nuevoSucursalForm.resetForm();
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearSucursal
+        .mutateAsync(nuevoSucursalForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["sucursales"]);
+          nuevoSucursalForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
-
   /** Inicia edición cargando datos existentes en el formulario */
   const handleEditar = (sucursal) => {
     setEditandoId(sucursal.sucursalId);
@@ -81,84 +84,86 @@ export const useSucursalAdmin = (nuevoSucursalForm, editSucursalForm) => {
   /** Guardar cambios */
   const handleGuardar = async () => {
     if (!(await editSucursalForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
     const dataEditar = { sucursalId: editandoId, ...editSucursalForm.values };
 
-    updateSucursal.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Sucursal actualizado correctamente");
-        setEditandoId(null);
-        editSucursalForm.resetForm();
-        queryClient.invalidateQueries(["sucursales"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateSucursal
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editSucursalForm.resetForm();
+          queryClient.invalidateQueries(["sucursales"]);
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar modo edición sin guardar cambios */
   const handleCancelar = () => {
     setEditandoId(null);
     editSucursalForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar sucursal con confirmación de usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este sucursal?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteSucursal.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Sucursal eliminado correctamente");
-
-          // Si el anuncio eliminado estaba siendo editado, reiniciar estado
+    notify.deletePromise(
+      deleteSucursal
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editSucursalForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoSucursalForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["sucursales"], (old) =>
-            old ? old.filter((c) => c.sucursalId !== id) : []
+            old ? old.filter((u) => u.sucursalId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["sucursales"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de anuncios en un archivo Excel */
-  const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+  const descargarExcel = () => {
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "sucursal.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "sucursal.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error; // 🔑 NECESARIO para toast.promise
+        })
+    );
   };
 
   return {

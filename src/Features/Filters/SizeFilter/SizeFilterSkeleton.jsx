@@ -56,7 +56,7 @@ const SizeFilterSkeleton = () => {
           <div className="skeleton count-skeleton"></div>
         </div>
         {/* Grid placeholder de tallas */}
-        <div className="size-grid">{renderSizeCircles(8)}</div>
+        <div className="size-grid">{renderSizeCircles(5)}</div>
       </div>
       {/* Grid placeholder de productos */}
       <div className="product-grid">

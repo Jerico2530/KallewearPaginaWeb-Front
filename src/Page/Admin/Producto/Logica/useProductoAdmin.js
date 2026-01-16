@@ -23,7 +23,7 @@ import {
   useDeleteProducto,
   useExportarExcelProductos,
 } from "../../../../hooks/useProducto";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useProductosAdmin = (nuevoProductoForm, editProductoForm) => {
@@ -34,7 +34,7 @@ export const useProductosAdmin = (nuevoProductoForm, editProductoForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelProductos();
   // Servicio centralizado de notificaciones UI
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal de datos del carrito (caché integrada)
   const { data: productosData = [], isLoading } = useProductos();
   // Mutaciones CRUD
@@ -53,18 +53,22 @@ export const useProductosAdmin = (nuevoProductoForm, editProductoForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos
     if (!(await nuevoProductoForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
 
-    crearProducto.mutate(nuevoProductoForm.values, {
-      onSuccess: () => {
-        notify.success("Producto creado correctamente");
-        queryClient.invalidateQueries(["producto"]); // sincroniza la vista
-        nuevoProductoForm.resetForm(); // limpia campos
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearProducto
+        .mutateAsync(nuevoProductoForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["producto"]);
+          nuevoProductoForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Iniciar modo edición cargando los datos seleccionados */
@@ -85,84 +89,86 @@ export const useProductosAdmin = (nuevoProductoForm, editProductoForm) => {
   /** Guardar cambios de edición */
   const handleGuardar = async () => {
     if (!(await editProductoForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
     const dataEditar = { productoId: editandoId, ...editProductoForm.values };
 
-    updateProducto.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Producto actualizado correctamente");
-        setEditandoId(null);
-        editProductoForm.resetForm();
-        queryClient.invalidateQueries(["producto"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateProducto
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editProductoForm.resetForm();
+          queryClient.invalidateQueries(["producto"]);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar edición restableciendo estado */
   const handleCancelar = () => {
     setEditandoId(null);
     editProductoForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar un carrito con confirmación del usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este producto?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteProducto.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Producto eliminado correctamente");
-
-          // Si el elemento eliminado estaba en edición, salir del modo edición
+    notify.deletePromise(
+      deleteProducto
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editProductoForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoProductoForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["productos"], (old) =>
-            old ? old.filter((c) => c.productoId !== id) : []
+            old ? old.filter((r) => r.productoId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["productos"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de anuncios en un archivo Excel */
   const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "producto.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "producto.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   return {

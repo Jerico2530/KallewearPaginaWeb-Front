@@ -22,7 +22,7 @@ import {
   useEliminarNoticia,
   useExportarExcelNoticias,
 } from "../../../../hooks/useNoticias";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useNoticiasAdmin = (nuevoNoticiaForm, editNoticiaForm) => {
@@ -33,7 +33,7 @@ export const useNoticiasAdmin = (nuevoNoticiaForm, editNoticiaForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelNoticias();
   // Servicio global de notificaciones
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal: obtiene todos los anuncios desde la API
   const { data: noticiasData = [], isLoading } = useNoticias();
   // Mutaciones CRUD
@@ -53,18 +53,21 @@ export const useNoticiasAdmin = (nuevoNoticiaForm, editNoticiaForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos a la API
     if (!(await nuevoNoticiaForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
-
-    crearNoticia.mutate(nuevoNoticiaForm.values, {
-      onSuccess: () => {
-        notify.success("Noticia creado correctamente");
-        queryClient.invalidateQueries(["noticia"]);
-        nuevoNoticiaForm.resetForm();
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearNoticia
+        .mutateAsync(nuevoNoticiaForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["noticia"]);
+          nuevoNoticiaForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Inicia edición cargando datos existentes en el formulario */
@@ -83,43 +86,42 @@ export const useNoticiasAdmin = (nuevoNoticiaForm, editNoticiaForm) => {
   /** Guardar cambios del anuncio editado */
   const handleGuardar = async () => {
     if (!(await editNoticiaForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
 
     const dataEditar = { noticiaId: editandoId, ...editNoticiaForm.values };
 
-    updateNoticia.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Noticia actualizado correctamente");
-        setEditandoId(null);
-        editNoticiaForm.resetForm();
-        queryClient.invalidateQueries(["noticia"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateNoticia
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editNoticiaForm.resetForm();
+          queryClient.invalidateQueries(["noticia"]);
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
-
   /** Cancelar modo edición sin guardar cambios */
   const handleCancelar = () => {
     setEditandoId(null);
     editNoticiaForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar anuncio con confirmación de usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este noticia?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteNoticia.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Noticia eliminado correctamente");
-
-          // 🧩 Limpieza inmediata del form y cache coherente
+    notify.deletePromise(
+      deleteNoticia
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editNoticiaForm.resetForm();
@@ -128,39 +130,41 @@ export const useNoticiasAdmin = (nuevoNoticiaForm, editNoticiaForm) => {
           nuevoNoticiaForm.resetForm();
 
           queryClient.setQueryData(["noticias"], (old) =>
-            old ? old.filter((c) => c.noticiaId !== id) : []
+            old ? old.filter((u) => u.noticiaId !== id) : []
           );
 
           queryClient.invalidateQueries(["noticias"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   // ** Exportar la lista de anuncios en un archivo Excel */
-  const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+  const descargarExcel = () => {
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "noticias.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "noticias.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error; // 🔑 NECESARIO para toast.promise
+        })
+    );
   };
 
   return {

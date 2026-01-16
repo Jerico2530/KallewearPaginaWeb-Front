@@ -23,7 +23,7 @@ import {
   useEliminarOrden,
   useExportarOrdenes,
 } from "../../../../hooks/useOrden";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useOrdenesAdmin = (nuevoOrdenForm, editOrdenForm) => {
@@ -34,7 +34,7 @@ export const useOrdenesAdmin = (nuevoOrdenForm, editOrdenForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarOrdenes();
   // Servicio centralizado de notificaciones UI
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal de datos del carrito (caché integrada)
   const { data: ordenes, isLoading } = useOrdenes();
   // Mutaciones CRUD
@@ -46,18 +46,22 @@ export const useOrdenesAdmin = (nuevoOrdenForm, editOrdenForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos
     if (!(await nuevoOrdenForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
 
-    crearOrden.mutate(nuevoOrdenForm.values, {
-      onSuccess: () => {
-        notify.success("Orden creado correctamente");
-        queryClient.invalidateQueries(["orden"]);
-        nuevoOrdenForm.resetForm();
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearOrden
+        .mutateAsync(nuevoOrdenForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["orden"]);
+          nuevoOrdenForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Iniciar modo edición cargando los datos seleccionados */
@@ -76,43 +80,43 @@ export const useOrdenesAdmin = (nuevoOrdenForm, editOrdenForm) => {
   /** Guardar cambios de edición */
   const handleGuardar = async () => {
     if (!(await editOrdenForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
     const dataEditar = { ordenId: editandoId, ...editOrdenForm.values };
 
-    updateOrden.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Orden actualizado correctamente");
-        setEditandoId(null);
-        editOrdenForm.resetForm();
-        queryClient.invalidateQueries(["orden"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateOrden
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editOrdenForm.resetForm();
+          queryClient.invalidateQueries(["orden"]);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar edición restableciendo estado */
   const handleCancelar = () => {
     setEditandoId(null);
     editOrdenForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar un carrito con confirmación del orden */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este orden?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteOrden.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Orden eliminado correctamente");
-
-          // 🧩 Limpieza inmediata del form y cache coherente
+    notify.deletePromise(
+      deleteOrden
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editOrdenForm.resetForm();
@@ -121,39 +125,41 @@ export const useOrdenesAdmin = (nuevoOrdenForm, editOrdenForm) => {
           nuevoOrdenForm.resetForm();
 
           queryClient.setQueryData(["ordenes"], (old) =>
-            old ? old.filter((c) => c.ordenId !== id) : []
+            old ? old.filter((r) => r.ordenId !== id) : []
           );
 
           queryClient.invalidateQueries(["ordenes"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de anuncios en un archivo Excel */
   const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "orden.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "orden.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   return {

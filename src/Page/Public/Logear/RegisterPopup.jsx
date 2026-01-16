@@ -16,7 +16,6 @@
 import React from "react";
 import { IoCloseOutline } from "react-icons/io5";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSnackbar } from "notistack";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -26,6 +25,8 @@ import { handleApiError } from "../../../utils/handleApiError";
 import { UsuarioInicial } from "../../../constants/usuarioConstantes";
 import { mapToPayload } from "./Constans/UsuarioConstansCom";
 import { camposUsuario } from "./Constans/UsuarioVisualConstansCom";
+import { useNotifier } from "../../../utils/useNotifier";
+import { NOTIFICACIONES } from "../../../constants/notificationsConstantes";
 
 // Botón de envío reutilizable con animación
 const SubmitButton = ({ isSubmitting, children }) => (
@@ -44,7 +45,7 @@ const SubmitButton = ({ isSubmitting, children }) => (
 const RegisterPopup = ({ registerPopup, setRegisterPopup, setLoginPopup }) => {
   const crearUsuario = useCrearUsuario();
   const queryClient = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
+  const { success, error } = useNotifier();
   // Configuración de React Hook Form con validación Yup
   const {
     register,
@@ -60,21 +61,19 @@ const RegisterPopup = ({ registerPopup, setRegisterPopup, setLoginPopup }) => {
     try {
       const payload = mapToPayload(data);
       await crearUsuario.mutateAsync(payload);
-      enqueueSnackbar("Usuario creado correctamente 🎉", {
-        variant: "success",
-      });
+
+      success(NOTIFICACIONES.REGISTER.SUCCESS);
 
       reset(UsuarioInicial);
       setRegisterPopup(false);
 
-      // Abrir el popup de login después de registrar
       setTimeout(() => {
         setLoginPopup(true);
       }, 500);
 
       queryClient.invalidateQueries(["usuarios"]);
     } catch (err) {
-      handleApiError(err, enqueueSnackbar);
+      handleApiError(err, error, NOTIFICACIONES.REGISTER.ERROR);
     }
   };
 

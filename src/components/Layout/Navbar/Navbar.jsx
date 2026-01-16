@@ -27,6 +27,7 @@ import DarkMode from "./DarkMode";
 import MyCart from "../../../Page/Public/Cart/MyCart";
 import MenuConfig from "../../../config/menuConfig";
 import DropdownLinks from "../../../config/dropdownLinks";
+import VerLinks from "../../../config/verLinks";
 
 import { hasPermiso } from "../../../utils/permissionUtils";
 
@@ -97,38 +98,36 @@ const Navbar = ({ handleLoginPopup }) => {
                     className="w-8 h-8 rounded-full object-cover"
                   />
                   <span className="hidden sm:block">
-                    {isLoading ? "Cargando..." : displayNombre.trim() || "Usuario"}
+                    {isLoading
+                      ? "Cargando..."
+                      : displayNombre.trim() || "Usuario"}
                   </span>
                   <FaCaretDown
-                    className={`duration-200 ${profileDropdownOpen ? "rotate-180" : ""}`}
+                    className={`duration-200 ${
+                      profileDropdownOpen ? "rotate-180" : ""
+                    }`}
                   />
                 </button>
 
                 {profileDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-40 bg-white text-black rounded-md shadow-md z-50">
                     <ul className="flex flex-col">
-                      <li>
-                        <Link
-                          to="/perfil"
-                          className="block px-4 py-2 hover:bg-primary/20"
-                          onClick={() => setProfileDropdownOpen(false)}
-                        >
-                          Ver perfil
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          to="/carrito"
-                          className="block px-4 py-2 hover:bg-primary/20"
-                          onClick={() => setProfileDropdownOpen(false)}
-                        >
-                          Ver carrito
-                        </Link>
-                      </li>
+                      {VerLinks.map((item) => (
+                        <li key={item.id}>
+                          <Link
+                            to={item.link}
+                            className="block px-4 py-2 hover:bg-primary/20 transition"
+                            onClick={() => setProfileDropdownOpen(false)}
+                          >
+                            {item.name}
+                          </Link>
+                        </li>
+                      ))}
+
                       <li>
                         <button
                           onClick={handleLogout}
-                          className="w-full text-left px-4 py-2 hover:bg-primary/20"
+                          className="w-full text-left px-4 py-2 hover:bg-primary/20 transition"
                         >
                           Logout
                         </button>

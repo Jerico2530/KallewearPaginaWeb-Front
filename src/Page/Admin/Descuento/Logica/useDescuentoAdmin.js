@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {useDescuentos,useCreateDescuento,useUpdateDescuento,useDeleteDescuento,} from "../../../../hooks/useDescuento";
-import { useNotification } from "../../../../utils/NotificationService";
+import {
+  useDescuentos,
+  useCreateDescuento,
+  useUpdateDescuento,
+  useDeleteDescuento,
+} from "../../../../hooks/useDescuento";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useDescuentoAdmin = (nuevoDescuentoForm, editDescuentoForm) => {
   const [editandoId, setEditandoId] = useState(null);
   const queryClient = useQueryClient();
-  const notify = useNotification();
+  const notify = useAdminNotifier();
 
   const { data: descuentos = [], isLoading } = useDescuentos();
   const crearDescuento = useCreateDescuento();
@@ -17,19 +22,22 @@ export const useDescuentoAdmin = (nuevoDescuentoForm, editDescuentoForm) => {
   /** Crear Descuento */
   const handleCrear = async () => {
     if (!(await nuevoDescuentoForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
-
-    crearDescuento.mutate(nuevoDescuentoForm.values, {
-      onSuccess: () => {
-        notify.success("Descuento creado correctamente");
-        queryClient.invalidateQueries(["descuento"]);
-        nuevoDescuentoForm.resetForm();
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearDescuento.mutateAsync(nuevoDescuentoForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["descuento"]);
+          nuevoDescuentoForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
+
 
   /** Editar Descuento */
   const handleEditar = (descuento) => {
@@ -48,61 +56,70 @@ export const useDescuentoAdmin = (nuevoDescuentoForm, editDescuentoForm) => {
   /** Guardar cambios */
   const handleGuardar = async () => {
     if (!(await editDescuentoForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError(); 
       return;
     }
 
     const dataEditar = { descuentoId: editandoId, ...editDescuentoForm.values };
 
-    updateDescuento.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Descuento actualizado correctamente");
-        setEditandoId(null);
-        editDescuentoForm.resetForm();
-        queryClient.invalidateQueries(["Descuento"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateDescuento.mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editDescuentoForm.resetForm();
+          queryClient.invalidateQueries(["Descuento"]);
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
+
 
   /** Cancelar edición */
   const handleCancelar = () => {
     setEditandoId(null);
     editDescuentoForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar Descuento */
-const handleEliminar = async (id) => {
-  const confirmar = await notify.confirmAsync("¿Seguro que deseas eliminar esta categoría?");
-  if (!confirmar) return;
+  const handleEliminar = async (id) => {
+    const confirmar = await notify.confirmDelete();
+    if (!confirmar) return;
 
-  deleteDescuento.mutate(id, {
-    onSuccess: (data) => {
-      if (data?.isExitoso) {
-        notify.success("Categoría eliminada correctamente");
+     notify.deletePromise(
+      deleteDescuento.mutateAsync(id)
+        .then(() => {
+          if (editandoId === id) {
+            setEditandoId(null);
+            editDescuentoForm.resetForm();
+          }
 
-        // 🧩 Limpieza inmediata del form y cache coherente
-        if (editandoId === id) {
-          setEditandoId(null);
-          editDescuentoForm.resetForm();
-        }
+          nuevoDescuentoForm.resetForm();
 
-        nuevoDescuentoForm.resetForm();
+          queryClient.setQueryData(["descuentos"], (old) =>
+            old ? old.filter((u) => u.descuentoId !== id) : []
+          );
 
-        // 🧠 Mantener coherencia con cache (clave correcta)
-        queryClient.setQueryData(["descuentos"], (old) =>
-          old ? old.filter((c) => c.descuentoId !== id) : []
-        );
+          queryClient.invalidateQueries(["descuentos"]);
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
+  };
 
-        // Refetch silencioso para asegurar estado real del backend
-        queryClient.invalidateQueries(["descuentos"]);
-      }
-    },
-    onError: (error) => handleApiError(error, notify),
-  });
-};
-
-
-  return {descuentos,isLoading,editandoId,handleCrear,handleEditar,handleGuardar,handleCancelar,handleEliminar,};
+  return {
+    descuentos,
+    isLoading,
+    editandoId,
+    handleCrear,
+    handleEditar,
+    handleGuardar,
+    handleCancelar,
+    handleEliminar,
+  };
 };

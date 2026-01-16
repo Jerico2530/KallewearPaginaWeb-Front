@@ -27,24 +27,21 @@ export const CategoryFilterSkeleton = () => {
     Array.from({ length: count }).map((_, index) => (
       <div key={index} className="col-12 col-sm-6 col-lg-3">
         <div className="card card-skeleton">
+          {/* Placeholder del área de imagen del producto */}
           <div className="skeleton image-skeleton">
             <div className="skeleton shipping-badge"></div>
           </div>
-          {/* Contenido textual simulado del producto */}
+          {/* Placeholder del contenido textual y acciones */}
           <div className="card-body">
             <div className="skeleton title-skeleton-card"></div>
-            {/* Precio e información complementaria */}
+            {/* Sección del precio e información de pago */}
             <div className="price-row">
               <div className="skeleton price-skeleton"></div>
               <div className="skeleton installment-skeleton"></div>
             </div>
-            {/* Indicadores de tallas/categorías (vista placeholder) */}
-            <div className="sizes-skeleton">
-              {/* igual que SizeFilterSkeleton pero categorías */}
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="skeleton category-dot"></div>
-              ))}
-            </div>
+            {/* Simulación de categorías dentro de la card */}
+            <div className="sizes-skeleton">{renderCategoryCircles(4)}</div>
+            {/* Simulación del botón de acción del producto */}
             <div className="skeleton button-skeleton"></div>
           </div>
         </div>
@@ -53,18 +50,16 @@ export const CategoryFilterSkeleton = () => {
 
   return (
     <div className="page-container">
-      {/* Título de la categoría y contador de resultados en estado de carga */}
+      {/* Encabezado del área de selección de categorías en estado de carga */}
       <div className="category-selector">
         <div className="category-title">
           <div className="skeleton title-skeleton"></div>
           <div className="skeleton count-skeleton"></div>
         </div>
-
-        {/* Grid de categorías en skeleton */}
-        <div className="category-grid">{renderCategoryBoxes(5)}</div>
+        {/* Grid placeholder de categorías */}
+        <div className="category-grid">{renderCategoryCircles(5)}</div>
       </div>
-
-      {/* Grid de productos en skeleton */}
+      {/* Grid placeholder de productos */}
       <div className="product-grid">
         <div className="row g-4">{renderCards(4)}</div>
       </div>

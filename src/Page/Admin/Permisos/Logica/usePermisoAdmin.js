@@ -22,7 +22,7 @@ import {
   useDeletePermiso,
   useExportarExcelPermisos,
 } from "../../../../hooks/usePermiso";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const usePermisosAdmin = (nuevoPermisoForm, editPermisoForm) => {
@@ -33,7 +33,7 @@ export const usePermisosAdmin = (nuevoPermisoForm, editPermisoForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelPermisos();
   // Servicio global de notificaciones
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal: obtiene todos los anuncios desde la API
   const { data: permisosData = [], isLoading } = usePermisos();
   // Mutaciones CRUD
@@ -53,18 +53,20 @@ export const usePermisosAdmin = (nuevoPermisoForm, editPermisoForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos a la API
     if (!(await nuevoPermisoForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
-
-    crearPermiso.mutate(nuevoPermisoForm.values, {
-      onSuccess: () => {
-        notify.success("Permiso creado correctamente");
-        queryClient.invalidateQueries(["permiso"]); // sincroniza lista
-        nuevoPermisoForm.resetForm(); // limpia formulario
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearPermiso.mutateAsync(nuevoPermisoForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["permiso"]);
+          nuevoPermisoForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Inicia edición cargando datos existentes en el formulario */
@@ -80,85 +82,87 @@ export const usePermisosAdmin = (nuevoPermisoForm, editPermisoForm) => {
   /** Guardar cambios del anuncio editado */
   const handleGuardar = async () => {
     if (!(await editPermisoForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError(); 
       return;
     }
 
     const dataEditar = { permisoId: editandoId, ...editPermisoForm.values };
 
-    updatePermiso.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Permiso actualizado correctamente");
-        setEditandoId(null);
-        editPermisoForm.resetForm();
-        queryClient.invalidateQueries(["permiso"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+     notify.updatePromise(
+      updatePermiso.mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editPermisoForm.resetForm();
+          queryClient.invalidateQueries(["permiso"]);
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar modo edición sin guardar cambios */
   const handleCancelar = () => {
     setEditandoId(null);
     editPermisoForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar anuncio con confirmación de usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este permiso?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deletePermiso.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Permiso eliminado correctamente");
-
-          // Si el anuncio eliminado estaba siendo editado, reiniciar estado
+    notify.deletePromise(
+      deletePermiso.mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editPermisoForm.resetForm();
           }
 
           nuevoPermisoForm.resetForm();
-          // Actualiza caché local inmediatamente (optimización de UX)
+
           queryClient.setQueryData(["permisos"], (old) =>
-            old ? old.filter((c) => c.permisoId !== id) : []
+            old ? old.filter((u) => u.permisoId !== id) : []
           );
 
           queryClient.invalidateQueries(["permisos"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
-  };
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
+  }; 
 
   /** Exportar la lista de anuncios en un archivo Excel */
   const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+     notify.exportPromise(
+    exportarExcel
+      .mutateAsync()
+      .then((response) => {
+        const url = window.URL.createObjectURL(
+          new Blob([response.data])
+        );
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "permiso.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "permiso.xlsx"); // nombre del archivo
+        document.body.appendChild(link);
+        link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
-  };
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch((error) => {
+        handleApiError(error, notify);
+        throw error; 
+      })
+  );
+};
 
   return {
     permisos,

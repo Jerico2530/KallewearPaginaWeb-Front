@@ -32,24 +32,24 @@ const SizeFilter = ({ products, totalFiltered }) => {
     if (!products || products.length === 0) return [];
 
     // Extrae todas las tallas disponibles desde tallasDetalle
-    const allSizes = products.flatMap((product) =>
-      product.tallasDetalle.map((t) => t.tipoTalla)
+    const allSizes = products.flatMap(
+      (product) => product.tallasDetalle?.map((t) => t.tipoTalla) ?? []
     );
 
     // Elimina duplicados y ordena
     return [...new Set(allSizes)].sort();
   }, [products]);
 
-  // Maneja selección/des-selección de la talla y activa animación de carga
+  // Maneja selección/des-selección de tallas (ahora permite múltiples tallas)
   const handleSizeClick = (size) => {
-    ref.current.continuousStart();
+    ref.current.continuousStart(); // Inicia la animación de carga
 
-    const newSizes =
-      selectedSizes.length === 1 && selectedSizes[0] === size
-        ? [] // Si la talla ya estaba seleccionada, se limpia el filtro
-        : [size]; // Caso contrario, se selecciona la nueva talla
+    // Si la talla ya está seleccionada, la eliminamos; si no, la añadimos
+    const newSizes = selectedSizes.includes(size)
+      ? selectedSizes.filter((s) => s !== size) // quitar talla seleccionada
+      : [...selectedSizes, size]; // añadir nueva talla
 
-    // Se retrasa para que la barra de carga se perciba mejor
+    // Aplicamos el filtro después de un pequeño retraso para suavizar la animación
     setTimeout(() => {
       handleFilter(newSizes, ref);
     }, 100);
@@ -80,7 +80,8 @@ const SizeFilter = ({ products, totalFiltered }) => {
             key={size}
             onClick={() => handleSizeClick(size)}
             aria-pressed={selectedSizes.includes(size)}
-            className={`w-12 h-12 flex items-center justify-center rounded-full font-medium text-sm transition-all duration-300 shadow-sm
+            className={`inline-flex items-center justify-center rounded-full 
+              px-4 py-2 font-medium text-sm transition-all duration-300 shadow-sm
               ${
                 selectedSizes.includes(size)
                   ? "bg-gray-900 text-white shadow-md scale-105 dark:bg-gray-100 dark:text-gray-900 dark:shadow-gray-600"

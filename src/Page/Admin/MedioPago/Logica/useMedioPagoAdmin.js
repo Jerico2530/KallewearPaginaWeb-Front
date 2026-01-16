@@ -22,7 +22,7 @@ import {
   useEliminarMedioPago,
   useExportarExcelMedioPagos,
 } from "../../../../hooks/useMedioPago";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useMedioPagosAdmin = (nuevoMedioPagoForm, editMedioPagoForm) => {
@@ -33,7 +33,7 @@ export const useMedioPagosAdmin = (nuevoMedioPagoForm, editMedioPagoForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelMedioPagos();
   // Servicio centralizado de notificaciones UI
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal de datos del carrito (caché integrada)
   const { data: medioPagosData = [], isLoading } = useMedioPagos();
   // Mutaciones CRUD
@@ -52,20 +52,23 @@ export const useMedioPagosAdmin = (nuevoMedioPagoForm, editMedioPagoForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos
     if (!(await nuevoMedioPagoForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
 
-    crearMedioPago.mutate(nuevoMedioPagoForm.values, {
-      onSuccess: () => {
-        notify.success("MedioPago creado correctamente");
-        queryClient.invalidateQueries(["medioPago"]);
-        nuevoMedioPagoForm.resetForm();
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearMedioPago
+        .mutateAsync(nuevoMedioPagoForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["medioPago"]);
+          nuevoMedioPagoForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
-
   /** Iniciar modo edición cargando los datos seleccionados */
   const handleEditar = (medioPago) => {
     setEditandoId(medioPago.medioPagoId);
@@ -80,84 +83,86 @@ export const useMedioPagosAdmin = (nuevoMedioPagoForm, editMedioPagoForm) => {
   /** Guardar cambios de edición */
   const handleGuardar = async () => {
     if (!(await editMedioPagoForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
     const dataEditar = { medioPagoId: editandoId, ...editMedioPagoForm.values };
 
-    updateMedioPago.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("MedioPago actualizado correctamente");
-        setEditandoId(null);
-        editMedioPagoForm.resetForm();
-        queryClient.invalidateQueries(["medioPago"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateMedioPago
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editMedioPagoForm.resetForm();
+          queryClient.invalidateQueries(["medioPago"]);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar edición restableciendo estado */
   const handleCancelar = () => {
     setEditandoId(null);
     editMedioPagoForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar un carrito con confirmación del usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este medioPago?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteMedioPago.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("MedioPago eliminado correctamente");
-
-          // Si el elemento eliminado estaba en edición, salir del modo edición
+    notify.deletePromise(
+      deleteMedioPago
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editMedioPagoForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoMedioPagoForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["medioPagos"], (old) =>
-            old ? old.filter((c) => c.medioPagoId !== id) : []
+            old ? old.filter((r) => r.medioPagoId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["medioPagos"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de anuncios en un archivo Excel */
   const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "medioPago.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "medioPago.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   return {

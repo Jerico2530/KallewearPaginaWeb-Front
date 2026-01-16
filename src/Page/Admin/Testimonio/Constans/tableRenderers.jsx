@@ -1,0 +1,35 @@
+export const tableRenderers = {
+  image: (value) => {
+    if (!value) return "-";
+
+    return (
+      <img
+        src={value}
+        alt="img"
+        className="w-12 h-12 rounded-full border border-gray-300 dark:border-gray-600 object-cover"
+      />
+    );
+  },
+
+  date: (value) =>
+    value ? new Date(value).toLocaleDateString() : "-",
+
+  status: (value) => (
+    <span
+      className={`badge px-2 py-0.5 rounded-full ${
+        value ? "text-success" : "text-error"
+      }`}
+    >
+      {value ? "Activo" : "Inactivo"}
+    </span>
+  ),
+  rating: (value) => {
+    const v = Number(value) || 0;
+    return v > 0 ? `${v} ⭐` : "-";
+  },
+  usuarioNombre: (_, row, extra) => {
+    const usuario = extra?.usuarios?.find((u) => u.usuarioId === row.usuarioId);
+    return usuario ? `${usuario.nombreCompleto} ${usuario.apellidoCompleto}` : "-";
+  },
+
+};

@@ -11,44 +11,57 @@
  *   - Gestión de estado interno para abrir/cerrar secciones del menú.
  *   - Compatible con modo oscuro y diseño responsivo.
  */
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { sidebarMenu } from "./sidebarMenu";
 
 const PageCrud = ({ activeTab, children }) => {
   const navigate = useNavigate();
-  // Estados para controlar la expansión de secciones del menú
-  const [openProducto, setOpenProducto] = useState(false);
-  const [openUsuario, setOpenUsuario] = useState(false);
-  const [openPermiso, setOpenPermiso] = useState(false);
+
+  const [openProducto, setOpenProducto] = useState(null);
 
   return (
-    <div className="flex h-screen pt-[120px] overflow-hidden">
-      {/* Sidebar: navegación lateral del panel administrativo */}
-      <aside className="w-64 bg-primary text-gray-100 flex flex-col shadow">
-        {/* Logo o título del panel */}
+    <div className="flex h-screen pt-[120px] overflow-hidden bg-gray-100 dark:bg-gray-950">
+      {/* ================= SIDEBAR ================= */}
+      <aside className="w-64 flex flex-col bg-primary text-white shadow-xl border-r border-black/10">
+        {/* Logo */}
         <div
           onClick={() => navigate("/perfilAdmin")}
-          className="text-xl font-bold p-4 border-b border-gray-700 cursor-pointer text-black dark:text-white"
+          className="relative px-6 py-5 cursor-pointer border-b border-white/10 flex items-center gap-4 group"
         >
-          <span className="text-purple-500">Administración</span>
+          <div className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-purple-500 to-indigo-600 rounded-r" />
+
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-md">
+            <span className="text-lg font-bold">A</span>
+          </div>
+
+          <div>
+            <span className="text-xs uppercase tracking-widest text-white/60">
+              Panel
+            </span>
+            <span className="block text-base font-semibold">
+              Administración
+            </span>
+          </div>
         </div>
-        {/* Menú dinámico de navegación */}
-        <nav className="flex-1 overflow-y-auto p-2 space-y-2 text-base">
+
+        {/* Navegación */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-2">
           {sidebarMenu.map((group, index) => (
             <div key={index}>
-              {/* Título del grupo de menú, clicable para expandir/cerrar */}
               <div
                 onClick={() =>
-                  setOpenProducto((prev) => (prev === index ? null : index))
+                  setOpenProducto(openProducto === index ? null : index)
                 }
-                className="flex justify-between items-center px-3 py-3 cursor-pointer hover:bg-primary rounded text-lg"
+                className="flex items-center justify-between px-3 py-3 rounded-xl cursor-pointer hover:bg-white/10"
               >
-                <span className="flex items-center gap-3">
-                  <group.icon className="text-xl" /> {group.title}
+                <span className="flex items-center gap-3 text-sm font-medium">
+                  <group.icon className="text-lg" />
+                  {group.title}
                 </span>
                 <span
-                  className={`transform transition-transform ${
+                  className={`transition-transform ${
                     openProducto === index ? "rotate-90" : ""
                   }`}
                 >
@@ -56,16 +69,16 @@ const PageCrud = ({ activeTab, children }) => {
                 </span>
               </div>
 
-              {/* Submenú: visible solo si el grupo está expandido */}
               {openProducto === index && (
-                <div className="space-y-1 pl-6 mt-1">
-                  {group.children.map((item, cidx) => (
+                <div className="pl-6 mt-1 space-y-1">
+                  {group.children.map((item, i) => (
                     <div
-                      key={cidx}
+                      key={i}
                       onClick={() => navigate(item.path)}
-                      className="flex items-center gap-3 hover:bg-primary p-2.5 rounded cursor-pointer text-base"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-white/10"
                     >
-                      <item.icon className="text-lg" /> {item.label}
+                      <item.icon className="text-base opacity-80" />
+                      <span className="text-sm opacity-80">{item.label}</span>
                     </div>
                   ))}
                 </div>
@@ -75,10 +88,15 @@ const PageCrud = ({ activeTab, children }) => {
         </nav>
       </aside>
 
-      {/* Área principal de contenido con scroll independiente */}
-      <div className="flex-1 flex flex-col min-h-screen">
-        <main className="flex-1 w-full p-4 sm:p-6 bg-gray-50 dark:bg-gray-950 overflow-auto relative">
-          {children}
+      {/* ================= CONTENT ================= */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 bg-gray-50 dark:bg-gray-950 px-4 sm:px-6 py-6 overflow-hidden">
+          {/* 🔥 CONTENEDOR QUE MANEJA EL SCROLL */}
+          <div className="h-full max-w-[1400px] mx-auto flex flex-col">
+            <div className="flex-1 overflow-auto">
+              {children}
+            </div>
+          </div>
         </main>
       </div>
     </div>

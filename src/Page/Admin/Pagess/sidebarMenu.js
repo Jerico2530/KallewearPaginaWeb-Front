@@ -110,13 +110,7 @@ export const sidebarMenu = [
     title: "Venta",
     icon: FaCashRegister,
     children: [
-      {
-        label: "Carrito Compra",
-        path: "/carritoCompraadmin",
-        icon: FaShoppingCart,
-      },
       { label: "Orden", path: "/ordennadmin", icon: FaFileInvoice },
-      { label: "Orden Detalle", path: "/ordentalleadmin", icon: FaFileInvoice },
     ],
   },
 ];

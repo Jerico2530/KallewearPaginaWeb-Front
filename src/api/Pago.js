@@ -7,6 +7,11 @@ export const getPagos = async () => {
   return response.data.resultado;
 };
 
+export const getPagosUsuario = async (usuarioId) => {
+  const response = await axiosClient.get(`/Pago/usuario/${usuarioId}`);
+  return response.data.resultado;
+};
+
 // 🔹 Obtener Pago por ID
 export const getPagosById = async (pagoId) => {
   const response = await axiosClient.get(`/Pago/${pagoId}`);

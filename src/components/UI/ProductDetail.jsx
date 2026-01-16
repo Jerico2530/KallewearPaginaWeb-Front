@@ -1,66 +1,51 @@
-/**
- * ProductDetail.jsx
- * -------------------------------------------------
- * Vista de detalle de producto dentro del e-commerce.
- *
- * Funcionalidades clave:
- * • Visualización completa del producto (imagen, precio, tallas, descripción, stock).
- * • Selección de talla, control de cantidad y acción para agregar al carrito.
- * • Render dinámico de productos relacionados mediante carrusel.
- *
- * Propósito del componente:
- * Representar la página individual de un producto, conectada con la lógica
- * del carrito y la data del catálogo, optimizada para conversión y engagement.
- */
-import React, { useState, useEffect } from "react";
+import React, { lazy, Suspense } from "react";
 import { FaShoppingCart } from "react-icons/fa";
 import { IoAddCircleOutline, IoRemoveCircleOutline } from "react-icons/io5";
-import GeneralCard from "./GeneralCard";
+import Button from "../../components/UI/Button";
 import { useProductoTallas } from "../../hooks/useProductoTalla";
+import { useProductSelection } from "../../utils/useProductSelection";
+import { useRelatedProducts } from "../../utils/useRelatedProducts";
 
-// Swiper
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay, Pagination, Navigation } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 
-// Selecciona productos aleatorios excluyendo el actual
-const seleccionarProductosAleatorios = (productos, cantidad, excludeId) => {
-  const filtrados = productos.filter((p) => p.productoId !== excludeId);
-  const barajado = [...filtrados].sort(() => 0.5 - Math.random());
-  return barajado.slice(0, cantidad);
-};
+const GeneralCard = lazy(() => import("./GeneralCard"));
 
 const ProductDetail = ({ product, availableSizes, onAddToCart = () => {} }) => {
-  const [selectedSize, setSelectedSize] = useState(null); // Talla elegida para comprar
-  const [quantity, setQuantity] = useState(1); // Cantidad del producto
-  const { data: allProducts } = useProductoTallas(); // Lista global de productos-talla
-  const [productosTop, setProductosTop] = useState([]); // Productos recomendados dinámicos
+  const { data: allProducts } = useProductoTallas();
 
-  // 🔹 Generar productos aleatorios relacionados
-  useEffect(() => {
-    if (allProducts && allProducts.length > 0) {
-      setProductosTop(
-        seleccionarProductosAleatorios(allProducts, 6, product.productoId)
-      );
-      const interval = setInterval(() => {
-        setProductosTop(
-          seleccionarProductosAleatorios(allProducts, 6, product.productoId)
-        );
-      }, 10000);
+  /* 🔹 HOOK DE SELECCIÓN (talla + cantidad) */
+  const {
+    selectedSize,
+    quantity,
+    selectSize,
+    increaseQty,
+    decreaseQty,
+    setQuantity,
+    reset,
+  } = useProductSelection();
 
-      return () => clearInterval(interval);
-    }
-  }, [allProducts, product.productoId]);
+  /* 🔹 HOOK DE PRODUCTOS RELACIONADOS */
+  const productosTop = useRelatedProducts(
+    allProducts,
+    product?.productoId
+  );
 
-  // Muestra mensaje de carga si el producto aún no está disponible
-  if (!product)
-    return <p className="text-center mt-20 text-lg">Cargando producto...</p>;
+  if (!product) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-lg text-gray-500 dark:text-gray-300 animate-pulse">
+          Cargando producto...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center pt-[90px] gap-10 px-4">
-      {/* Contenedor principal */}
       <div className="w-full max-w-6xl bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 flex flex-col lg:flex-row gap-10">
         {/* Imagen */}
         <div className="flex-1 flex justify-center items-center">
@@ -71,13 +56,13 @@ const ProductDetail = ({ product, availableSizes, onAddToCart = () => {} }) => {
           />
         </div>
 
-        {/* Información principal */}
+        {/* Información */}
         <div className="flex-1 flex flex-col gap-4">
           <h1 className="text-3xl lg:text-4xl font-bold text-gray-800 dark:text-white">
             {product.nombre}
           </h1>
 
-          {/* Badges de beneficios */}
+          {/* Badges */}
           <div className="flex gap-3 mt-2">
             <span className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full font-semibold text-sm shadow-sm">
               Envío 24h
@@ -87,7 +72,7 @@ const ProductDetail = ({ product, availableSizes, onAddToCart = () => {} }) => {
             </span>
           </div>
 
-          {/* Precio del producto */}
+          {/* Precio */}
           <div className="text-3xl font-bold text-red-600 mt-4">
             S/. {product.precio.toFixed(2)}
           </div>
@@ -101,7 +86,7 @@ const ProductDetail = ({ product, availableSizes, onAddToCart = () => {} }) => {
               {availableSizes.map((size) => (
                 <button
                   key={size.productoTallaId}
-                  onClick={() => setSelectedSize(size)}
+                  onClick={() => selectSize(size)}
                   className={`px-4 py-2 border rounded-lg transition font-medium ${
                     selectedSize?.productoTallaId === size.productoTallaId
                       ? "bg-red-600 text-white border-red-600 shadow-lg"
@@ -114,14 +99,15 @@ const ProductDetail = ({ product, availableSizes, onAddToCart = () => {} }) => {
             </div>
           </div>
 
-          {/* Control de cantidad con validación mínima */}
+          {/* Cantidad */}
           <div className="flex items-center gap-3 mt-6">
             <button
-              onClick={() => setQuantity(Math.max(quantity - 1, 1))}
+              onClick={decreaseQty}
               className="border rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
             >
               <IoRemoveCircleOutline size={24} />
             </button>
+
             <input
               type="number"
               value={quantity}
@@ -129,8 +115,9 @@ const ProductDetail = ({ product, availableSizes, onAddToCart = () => {} }) => {
               onChange={(e) => setQuantity(Number(e.target.value))}
               className="w-20 text-center border rounded-lg px-3 py-2 bg-white dark:bg-gray-700"
             />
+
             <button
-              onClick={() => setQuantity(quantity + 1)}
+              onClick={increaseQty}
               className="border rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
             >
               <IoAddCircleOutline size={24} />
@@ -138,21 +125,22 @@ const ProductDetail = ({ product, availableSizes, onAddToCart = () => {} }) => {
           </div>
 
           {/* Botón agregar al carrito */}
-          <button
+          <Button
             onClick={() => {
-              if (!selectedSize) return alert("Selecciona una talla");
               onAddToCart(product, selectedSize, quantity);
+              reset(); // 🧹 limpia talla + cantidad
             }}
-            className="mt-6 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl text-lg flex items-center justify-center gap-3 shadow-lg transition"
+            disabled={!selectedSize || selectedSize.stock === 0}
+            icon={FaShoppingCart}
+            className="mt-6 w-full text-lg"
           >
-            <FaShoppingCart /> Agregar al carrito
-          </button>
+            Agregar al carrito
+          </Button>
         </div>
       </div>
 
-      {/* Sección de especificaciones + descripción */}
+      {/* Especificaciones + descripción */}
       <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-6 p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
-        {/* Cuadro de especificaciones como tabla */}
         <div className="flex-1 bg-gray-100 dark:bg-gray-700 p-6 rounded-xl shadow-inner">
           <h2 className="font-semibold mb-4 text-xl text-gray-800 dark:text-white border-b pb-2">
             Especificaciones
@@ -183,7 +171,9 @@ const ProductDetail = ({ product, availableSizes, onAddToCart = () => {} }) => {
               </tr>
               <tr className="border-b">
                 <td className="py-2 font-medium">Stock</td>
-                <td className="py-2">{product.stock}</td>
+                <td className="py-2">
+                  {selectedSize ? selectedSize.stock : product.stock}
+                </td>
               </tr>
               <tr>
                 <td className="py-2 font-medium">Estado</td>
@@ -195,7 +185,6 @@ const ProductDetail = ({ product, availableSizes, onAddToCart = () => {} }) => {
           </table>
         </div>
 
-        {/* Descripción al lado del cuadro */}
         <div className="flex-1 p-6 bg-gray-50 dark:bg-gray-800 rounded-xl shadow-inner">
           <h2 className="font-semibold mb-2 text-xl text-gray-800 dark:text-white">
             Descripción
@@ -206,7 +195,7 @@ const ProductDetail = ({ product, availableSizes, onAddToCart = () => {} }) => {
         </div>
       </div>
 
-      {/* -------------------- Carousel de productos relacionados -------------------- */}
+      {/* Carousel productos relacionados */}
       {productosTop.length > 0 && (
         <div className="w-full max-w-6xl mx-auto mt-10">
           <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">
@@ -233,12 +222,17 @@ const ProductDetail = ({ product, availableSizes, onAddToCart = () => {} }) => {
                 key={productoRelacionado.productoTallaId}
                 className="flex justify-center items-stretch"
               >
-                {/* Tarjeta compacta para sugerencias */}
-                <GeneralCard
-                  producto={productoRelacionado}
-                  compact
-                  onAddToCart={() => {}}
-                />
+                <Suspense
+                  fallback={
+                    <div className="w-40 h-52 bg-gray-200 animate-pulse rounded-xl" />
+                  }
+                >
+                  <GeneralCard
+                    producto={productoRelacionado}
+                    compact
+                    onAddToCart={() => {}}
+                  />
+                </Suspense>
               </SwiperSlide>
             ))}
           </Swiper>

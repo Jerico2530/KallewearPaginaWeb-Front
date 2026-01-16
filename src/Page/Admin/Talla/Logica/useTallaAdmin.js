@@ -22,7 +22,7 @@ import {
   useDeleteTalla,
   useExportarExcelTallas,
 } from "../../../../hooks/useTalla";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useTallasAdmin = (nuevoTallaForm, editTallaForm) => {
@@ -33,7 +33,7 @@ export const useTallasAdmin = (nuevoTallaForm, editTallaForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelTallas();
   // Servicio global de notificaciones
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal: obtiene todos los anuncios desde la API
   const { data: tallasData = [], isLoading } = useTallas();
   // Mutaciones CRUD
@@ -52,18 +52,21 @@ export const useTallasAdmin = (nuevoTallaForm, editTallaForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos a la API
     if (!(await nuevoTallaForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
 
-    crearTalla.mutate(nuevoTallaForm.values, {
-      onSuccess: () => {
-        notify.success("Talla creado correctamente");
-        queryClient.invalidateQueries(["talla"]); // sincroniza lista
-        nuevoTallaForm.resetForm();// limpia formulario
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearTalla.mutateAsync(nuevoTallaForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["talla"]);
+          nuevoTallaForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Inicia edición cargando datos existentes en el formulario */
@@ -80,81 +83,89 @@ export const useTallasAdmin = (nuevoTallaForm, editTallaForm) => {
   /** Guardar cambios */
   const handleGuardar = async () => {
     if (!(await editTallaForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError(); 
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
     const dataEditar = { tallaId: editandoId, ...editTallaForm.values };
 
-    updateTalla.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Talla actualizado correctamente");
-        setEditandoId(null);
-        editTallaForm.resetForm();
-        queryClient.invalidateQueries(["talla"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateTalla.mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editTallaForm.resetForm();
+          queryClient.invalidateQueries(["talla"]);
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar modo edición sin guardar cambios */
   const handleCancelar = () => {
     setEditandoId(null);
     editTallaForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar talla */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este talla?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteTalla.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Talla eliminado correctamente");
-
-          // Si el anuncio eliminado estaba siendo editado, reiniciar estado
+    notify.deletePromise(
+      deleteTalla.mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editTallaForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoTallaForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["tallas"], (old) =>
-            old ? old.filter((c) => c.tallaId !== id) : []
+            old ? old.filter((u) => u.tallaId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["tallas"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de anuncios en un archivo Excel */
   const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
-      const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "talla.xlsx");
+    notify.exportPromise(
+    exportarExcel
+      .mutateAsync()
+      .then((response) => {
+        const url = window.URL.createObjectURL(
+          new Blob([response.data])
+        );
 
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "talla.xlsx");
 
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
-  };
+        document.body.appendChild(link);
+        link.click();
+
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch((error) => {
+        handleApiError(error, notify);
+        throw error; // 🔑 NECESARIO para toast.promise
+      })
+  );
+};
+   
 
   return {
     tallas,

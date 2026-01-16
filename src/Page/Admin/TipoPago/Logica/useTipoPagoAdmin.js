@@ -22,7 +22,7 @@ import {
   useEliminarTipoPagos,
   useExportarExcelTipoPagos,
 } from "../../../../hooks/useTipoPago";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useTipoPagosAdmin = (nuevoTipoPagoForm, editTipoPagoForm) => {
@@ -33,7 +33,7 @@ export const useTipoPagosAdmin = (nuevoTipoPagoForm, editTipoPagoForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelTipoPagos();
   // Servicio global de notificaciones
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal: obtiene todos los anuncios desde la API
   const { data: tipoPagosData = [], isLoading } = useTipoPagos();
   // Mutaciones CRUD
@@ -53,18 +53,22 @@ export const useTipoPagosAdmin = (nuevoTipoPagoForm, editTipoPagoForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos a la API
     if (!(await nuevoTipoPagoForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
 
-    crearTipoPago.mutate(nuevoTipoPagoForm.values, {
-      onSuccess: () => {
-        notify.success("TipoPago creado correctamente");
-        queryClient.invalidateQueries(["tipoPago"]); // sincroniza lista
-        nuevoTipoPagoForm.resetForm(); // limpia formulario
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearTipoPago
+        .mutateAsync(nuevoTipoPagoForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["tipoPago"]);
+          nuevoTipoPagoForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Inicia edición cargando datos existentes en el formulario */
@@ -80,83 +84,86 @@ export const useTipoPagosAdmin = (nuevoTipoPagoForm, editTipoPagoForm) => {
   /** Guardar cambios */
   const handleGuardar = async () => {
     if (!(await editTipoPagoForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
     const dataEditar = { tipoPagoId: editandoId, ...editTipoPagoForm.values };
 
-    updateTipoPago.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("TipoPago actualizado correctamente");
-        setEditandoId(null);
-        editTipoPagoForm.resetForm();
-        queryClient.invalidateQueries(["tipoPago"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateTipoPago
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editTipoPagoForm.resetForm();
+          queryClient.invalidateQueries(["tipoPago"]);
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar modo edición sin guardar cambios */
   const handleCancelar = () => {
     setEditandoId(null);
     editTipoPagoForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar tipoPago */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este tipoPago?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteTipoPago.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("TipoPago eliminado correctamente");
-
-          // Si el anuncio eliminado estaba siendo editado, reiniciar estado
+    notify.deletePromise(
+      deleteTipoPago
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editTipoPagoForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoTipoPagoForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["tipoPagos"], (old) =>
-            old ? old.filter((c) => c.tipoPagoId !== id) : []
+            old ? old.filter((u) => u.tipoPagoId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["tipoPagos"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
+  
   /** Exportar la lista de anuncios en un archivo Excel */
-  const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+  const descargarExcel = () => {
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "tipoPago.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "tipoPago.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error; // 🔑 NECESARIO para toast.promise
+        })
+    );
   };
 
   return {

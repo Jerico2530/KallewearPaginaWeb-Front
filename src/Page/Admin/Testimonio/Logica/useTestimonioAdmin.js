@@ -22,7 +22,7 @@ import {
   useEliminarTestimonio,
   useExportarExcelTestimonios,
 } from "../../../../hooks/useTestimonio";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useTestimoniosAdmin = (
@@ -36,7 +36,7 @@ export const useTestimoniosAdmin = (
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelTestimonios();
   // Servicio centralizado de notificaciones UI
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal de datos del carrito (caché integrada)
   const { data: testimoniosData = [], isLoading } = useTestimonios();
   // Mutaciones CRUD
@@ -56,18 +56,22 @@ export const useTestimoniosAdmin = (
   const handleCrear = async () => {
     // Evita enviar datos inválidos
     if (!(await nuevoTestimonioForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
 
-    crearTestimonio.mutate(nuevoTestimonioForm.values, {
-      onSuccess: () => {
-        notify.success("Testimonio creado correctamente");
-        queryClient.invalidateQueries(["testimonio"]); // sincroniza la vista
-        nuevoTestimonioForm.resetForm(); // limpia campos
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearTestimonio
+        .mutateAsync(nuevoTestimonioForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["testimonio"]);
+          nuevoTestimonioForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Iniciar modo edición cargando los datos seleccionados */
@@ -85,7 +89,7 @@ export const useTestimoniosAdmin = (
   /** Guardar cambios */
   const handleGuardar = async () => {
     if (!(await editTestimonioForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
@@ -94,77 +98,80 @@ export const useTestimoniosAdmin = (
       ...editTestimonioForm.values,
     };
 
-    updateTestimonio.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Testimonio actualizado correctamente");
-        setEditandoId(null);
-        editTestimonioForm.resetForm();
-        queryClient.invalidateQueries(["testimonio"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateTestimonio
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editTestimonioForm.resetForm();
+          queryClient.invalidateQueries(["testimonio"]);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   //** Cancelar edición restableciendo estado */
   const handleCancelar = () => {
     setEditandoId(null);
     editTestimonioForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar testimonio */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este testimonio?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteTestimonio.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Testimonio eliminado correctamente");
-          // Si el elemento eliminado estaba en edición, salir del modo edición
+    notify.deletePromise(
+      deleteTestimonio
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editTestimonioForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoTestimonioForm.resetForm();
-          // Optimización: actualización inmediata de la lista en caché
+
           queryClient.setQueryData(["testimonios"], (old) =>
-            old ? old.filter((c) => c.testimonioId !== id) : []
+            old ? old.filter((r) => r.testimonioId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["testimonios"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de anuncios en un archivo Excel */
   const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "testimonio.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "testimonio.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   return {

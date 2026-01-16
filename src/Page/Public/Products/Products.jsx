@@ -14,14 +14,12 @@
  * y facilitando la adición de productos al carrito de manera rápida y visual.
  */
 import React, { useState, useEffect } from "react";
-import { FaStar } from "react-icons/fa";
-import { BsCartPlus } from "react-icons/bs";
 import GeneralCard from "../../../components/UI/GeneralCard";
 import { useProductos } from "../../../hooks/useProducto";
-import Button from "../../../components/UI/Button";
-import useOffcanvasStore from "../../../store/offcanvasStore";
-import useBalanceStore from "../../../store/balanceStore";
-import { useCrearCarritoCompras } from "../../../hooks/useCarrito";
+import DataLoader from "../../../components/UI/DataLoader";
+import useUserStore from "../../../store/userStore";
+import { useNavigate } from "react-router-dom";
+
 
 // Swiper
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -36,64 +34,33 @@ const seleccionarProductosAleatorios = (productos, cantidad) => {
   return barajado.slice(0, cantidad);
 };
 
-const Products = ({ usuarioId = 1 }) => {
-  // Hook para obtener productos desde la API
+const Products = () => {
+  /* ===================== DATA ===================== */
   const { data: productos, isLoading, isError } = useProductos();
-  // Hooks para manejar el offcanvas y animaciones de balanceo
-  const { toggleOffcanvas } = useOffcanvasStore();
-  const { toggleBalanceo } = useBalanceStore();
-  const crearCarrito = useCrearCarritoCompras();
-  // Estado local para productos destacados
+  const navigate = useNavigate();
+
+  /* ===================== STATE ===================== */
   const [productosTop, setProductosTop] = useState([]);
 
-  // 🔹 Selección aleatoria cada 10s
+  /* ===================== EFFECT ===================== */
   useEffect(() => {
-    if (productos && productos.length > 0) {
+    if (!productos || productos.length === 0) return;
+
+    setProductosTop(seleccionarProductosAleatorios(productos, 6));
+
+    const interval = setInterval(() => {
       setProductosTop(seleccionarProductosAleatorios(productos, 6));
-      const interval = setInterval(() => {
-        setProductosTop(seleccionarProductosAleatorios(productos, 6));
-      }, 10000);
-      return () => clearInterval(interval);
-    }
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [productos]);
-  // Manejo de estados de carga y error
-  if (isLoading)
-    return <p className="text-center text-gray-500">Cargando productos...</p>;
-  if (isError)
-    return (
-      <p className="text-center text-red-500">Error al cargar productos</p>
-    );
-
-  // Función para agregar producto al carrito
-  const handleAddToCart = async (producto, tallaSeleccionada) => {
-    await crearCarrito.mutateAsync({
-      usuarioId,
-      productoId: producto.productoId,
-      tallaId: producto.tallaId ?? null,
-      cantidad: 1,
-      precioUnitario: producto.precio,
-      subTotal: producto.precio,
-      estado: true,
-    });
-
-    // Limpiar selección
-    setSelectedTallas((prev) => {
-      const updated = { ...prev };
-      delete updated[product.productoId];
-      return updated;
-    });
-
-    // Actualiza UI: cierra offcanvas y activa animación de balanceo
-    toggleOffcanvas(true);
-    toggleBalanceo(true);
-  };
 
   return (
-    <section className="py-16  dark:bg-gray-900 dark:text-whit">
+    <section className="py-16 dark:bg-gray-900 dark:text-white">
       <div className="container">
-        {/* Header */}
+        {/* ================= HEADER ================= */}
         <div className="text-left mb-12">
-          <h1 className="text-3xl md:text-4xl font-bold mb-2 text-gray-900  dark:text-white">
+          <h1 className="text-3xl md:text-4xl font-bold mb-2 text-gray-900 dark:text-white">
             Productos favoritos
           </h1>
           <p className="text-lg text-gray-500">
@@ -101,35 +68,60 @@ const Products = ({ usuarioId = 1 }) => {
           </p>
         </div>
 
-        {/* Swiper Carousel */}
-        <Swiper
-          modules={[Autoplay, Pagination, Navigation]}
-          spaceBetween={20}
-          slidesPerView={1}
-          autoplay={{ delay: 3000, disableOnInteraction: false }}
-          pagination={{ clickable: true }}
-          navigation
-          breakpoints={{
-            640: { slidesPerView: 1 },
-            768: { slidesPerView: 2 },
-            1024: { slidesPerView: 3 },
-            1280: { slidesPerView: 4 },
-          }}
-          className="pb-12"
+        {/* ================= DATA LOADER ================= */}
+        <DataLoader
+          isLoading={isLoading}
+          isError={isError}
+          data={productosTop.length > 0 ? productosTop : null}
+          fallback={null}
+          loader={
+            <p className="text-center text-gray-500">Cargando productos...</p>
+          }
+          errorComponent={
+            <p className="text-center text-red-500">
+              Error al cargar productos
+            </p>
+          }
         >
-          {productosTop.map((producto) => (
-            <SwiperSlide
-              key={producto.productoId}
-              className="flex justify-center items-stretch"
+          {(productosRender) => (
+            <Swiper
+              modules={[Autoplay, Pagination, Navigation]}
+              spaceBetween={20}
+              slidesPerView={1}
+              autoplay={{ delay: 3000, disableOnInteraction: false }}
+              pagination={{ clickable: true }}
+              navigation
+              breakpoints={{
+                640: { slidesPerView: 1 },
+                768: { slidesPerView: 2 },
+                1024: { slidesPerView: 3 },
+                1280: { slidesPerView: 4 },
+              }}
+              className="pb-12"
             >
-              <GeneralCard
-                producto={producto}
-                onAddToCart={handleAddToCart}
-                compact
-              />
-            </SwiperSlide>
-          ))}
-        </Swiper>
+              {productosRender.map((producto) => (
+                <SwiperSlide
+                  key={producto.productoId}
+                  className="flex justify-center items-stretch"
+                >
+                  <GeneralCard
+                    producto={producto}
+                    compact
+                    /* ✅ CAMBIO CLAVE:
+                       - Eliminado onAddToCart
+                       - Se usa SOLO navegación al detalle
+                    */
+                    onViewDetail={() =>
+                      navigate(`/producto/${producto.productoId}`, {
+                        state: { product: producto },
+                      })
+                    }
+                  />
+                </SwiperSlide>
+              ))}
+            </Swiper>
+          )}
+        </DataLoader>
       </div>
     </section>
   );

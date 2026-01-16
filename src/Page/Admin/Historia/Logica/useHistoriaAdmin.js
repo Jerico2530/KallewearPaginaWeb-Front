@@ -23,7 +23,7 @@ import {
   useEliminarHistoria,
   useExportarExcelHistorias,
 } from "../../../../hooks/useHistoria";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useHistoriasAdmin = (nuevoHistoriaForm, editHistoriaForm) => {
@@ -34,7 +34,7 @@ export const useHistoriasAdmin = (nuevoHistoriaForm, editHistoriaForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelHistorias();
   // Servicio global de notificaciones
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal: obtiene todos los historias desde la API
   const { data: historias = [], isLoading } = useHistorias();
   // Mutaciones CRUD
@@ -46,18 +46,22 @@ export const useHistoriasAdmin = (nuevoHistoriaForm, editHistoriaForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos a la API
     if (!(await nuevoHistoriaForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
 
-    crearHistoria.mutate(nuevoHistoriaForm.values, {
-      onSuccess: () => {
-        notify.success("Historia creado correctamente");
-        queryClient.invalidateQueries(["Historia"]); // sincroniza lista
-        nuevoHistoriaForm.resetForm(); // limpia formulario
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearHistoria
+        .mutateAsync(nuevoHistoriaForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["usuario"]);
+          nuevoHistoriaForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Inicia edición cargando datos existentes en el formulario */
@@ -75,84 +79,86 @@ export const useHistoriasAdmin = (nuevoHistoriaForm, editHistoriaForm) => {
   /** Guardar cambios del historia editado */
   const handleGuardar = async () => {
     if (!(await editHistoriaForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
 
     const dataEditar = { historiaId: editandoId, ...editHistoriaForm.values };
 
-    updateHistoria.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Historia actualizado correctamente");
-        setEditandoId(null);
-        editHistoriaForm.resetForm();
-        queryClient.invalidateQueries(["Historia"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateHistoria
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editHistoriaForm.resetForm();
+          queryClient.invalidateQueries(["Historia"]);
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar modo edición sin guardar cambios */
   const handleCancelar = () => {
     setEditandoId(null);
     editHistoriaForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar historia con confirmación de historia */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este historia?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteHistoria.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Historia eliminado correctamente");
-
-          // Si el historia eliminado estaba siendo editado, reiniciar estado
+    notify.deletePromise(
+      deleteHistoria
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editHistoriaForm.resetForm();
           }
 
           nuevoHistoriaForm.resetForm();
-          // Actualiza caché local inmediatamente (optimización de UX)
+
           queryClient.setQueryData(["historias"], (old) =>
-            old ? old.filter((c) => c.historiaId !== id) : []
+            old ? old.filter((u) => u.historiaId !== id) : []
           );
 
           queryClient.invalidateQueries(["historias"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de historias en un archivo Excel */
-  const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+  const descargarExcel = () => {
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "historia.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "historia.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error; // 🔑 NECESARIO para toast.promise
+        })
+    );
   };
 
   return {

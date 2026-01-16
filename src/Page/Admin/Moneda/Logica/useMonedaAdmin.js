@@ -22,7 +22,7 @@ import {
   useDeleteMoneda,
   useExportarExcelMonedas,
 } from "../../../../hooks/useMoneda";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useMonedasAdmin = (nuevoMonedaForm, editMonedaForm) => {
@@ -33,7 +33,7 @@ export const useMonedasAdmin = (nuevoMonedaForm, editMonedaForm) => {
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelMonedas();
   // Servicio global de notificaciones
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal: obtiene todos los moneda desde la API
   const { data: monedasData = [], isLoading } = useMonedas();
   // Mutaciones CRUD
@@ -53,18 +53,20 @@ export const useMonedasAdmin = (nuevoMonedaForm, editMonedaForm) => {
   const handleCrear = async () => {
     // Evita enviar datos inválidos a la API
     if (!(await nuevoMonedaForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
-
-    crearMoneda.mutate(nuevoMonedaForm.values, {
-      onSuccess: () => {
-        notify.success("Moneda creado correctamente");
-        queryClient.invalidateQueries(["moneda"]); // sincroniza lista
-        nuevoMonedaForm.resetForm(); // limpia formulario
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearMoneda.mutateAsync(nuevoMonedaForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["moneda"]);
+          nuevoMonedaForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Inicia edición cargando datos existentes en el formulario */
@@ -82,85 +84,88 @@ export const useMonedasAdmin = (nuevoMonedaForm, editMonedaForm) => {
   /** Guardar cambios del moneda editado */
   const handleGuardar = async () => {
     if (!(await editMonedaForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError(); 
       return;
     }
 
     const dataEditar = { monedaId: editandoId, ...editMonedaForm.values };
 
-    updateMoneda.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("Moneda actualizado correctamente");
-        setEditandoId(null);
-        editMonedaForm.resetForm();
-        queryClient.invalidateQueries(["moneda"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateMoneda.mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editMonedaForm.resetForm();
+          queryClient.invalidateQueries(["moneda"]);
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar modo edición sin guardar cambios */
   const handleCancelar = () => {
     setEditandoId(null);
     editMonedaForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar moneda con confirmación de usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este moneda?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteMoneda.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("Moneda eliminado correctamente");
-
-          // Si el moneda eliminado estaba siendo editado, reiniciar estado
+     notify.deletePromise(
+      deleteMoneda.mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editMonedaForm.resetForm();
           }
 
           nuevoMonedaForm.resetForm();
-          // Actualiza caché local inmediatamente (optimización de UX)
+
           queryClient.setQueryData(["monedas"], (old) =>
-            old ? old.filter((c) => c.monedaId !== id) : []
+            old ? old.filter((u) => u.monedaId !== id) : []
           );
 
           queryClient.invalidateQueries(["monedas"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error);
+          throw error;
+        })
+    );
   };
+
 
   /** Exportar la lista de moneda en un archivo Excel */
   const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+    notify.exportPromise(
+    exportarExcel
+      .mutateAsync()
+      .then((response) => {
+        const url = window.URL.createObjectURL(
+          new Blob([response.data])
+        );
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", "moneda.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "moneda.xlsx"); // nombre del archivo
+        document.body.appendChild(link);
+        link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
-  };
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch((error) => {
+        handleApiError(error, notify);
+        throw error; 
+      })
+  );
+};
 
   return {
     monedas,

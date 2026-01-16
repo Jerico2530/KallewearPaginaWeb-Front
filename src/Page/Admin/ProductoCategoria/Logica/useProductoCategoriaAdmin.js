@@ -24,7 +24,7 @@ import {
   useDeleteProductoCategoria,
   useExportarExcelProductoCategorias,
 } from "../../../../hooks/useProductoCategoria";
-import { useNotification } from "../../../../utils/NotificationService";
+import { useAdminNotifier } from "../../../../constants/AdminNotifier";
 import { handleApiError } from "../../../../utils/handleApiError";
 
 export const useProductoCategoriasAdmin = (
@@ -38,7 +38,7 @@ export const useProductoCategoriasAdmin = (
   // Mutación para exportar datos
   const exportarExcel = useExportarExcelProductoCategorias();
   // Servicio centralizado de notificaciones UI
-  const notify = useNotification();
+  const notify = useAdminNotifier();
   // Consulta principal de datos del carrito (caché integrada)
   const { data: productoCategoriasData = [], isLoading } =
     useProductoCategorias();
@@ -57,18 +57,21 @@ export const useProductoCategoriasAdmin = (
   /** Crear productoCategoria */
   const handleCrear = async () => {
     if (!(await nuevoProductoCategoriaForm.validate())) {
-      notify.warning("Por favor corrige los errores del formulario.");
+      notify.validationError();
       return;
     }
-
-    crearProductoCategoria.mutate(nuevoProductoCategoriaForm.values, {
-      onSuccess: () => {
-        notify.success("ProductoCategoria creado correctamente");
-        queryClient.invalidateQueries(["productoCategoria"]); // sincroniza la vista
-        nuevoProductoCategoriaForm.resetForm(); // limpia campos
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.createPromise(
+      crearProductoCategoria
+        .mutateAsync(nuevoProductoCategoriaForm.values)
+        .then(() => {
+          queryClient.invalidateQueries(["productoCategoria"]);
+          nuevoProductoCategoriaForm.resetForm();
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Iniciar modo edición cargando los datos seleccionados */
@@ -85,7 +88,7 @@ export const useProductoCategoriasAdmin = (
   /** Guardar cambios de edición */
   const handleGuardar = async () => {
     if (!(await editProductoCategoriaForm.validate())) {
-      notify.warning("Por favor corrige los errores antes de guardar.");
+      notify.validationError();
       return;
     }
     // Se envía el ID que se está editando más los valores actualizados
@@ -93,78 +96,80 @@ export const useProductoCategoriasAdmin = (
       productoCategoriaId: editandoId,
       ...editProductoCategoriaForm.values,
     };
-
-    updateProductoCategoria.mutate(dataEditar, {
-      onSuccess: () => {
-        notify.success("ProductoCategoria actualizado correctamente");
-        setEditandoId(null);
-        editProductoCategoriaForm.resetForm();
-        queryClient.invalidateQueries(["productoCategoria"]);
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+    notify.updatePromise(
+      updateProductoCategoria
+        .mutateAsync(dataEditar)
+        .then(() => {
+          setEditandoId(null);
+          editProductoCategoriaForm.resetForm();
+          queryClient.invalidateQueries(["productoCategoria"]);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Cancelar edición restableciendo estado */
   const handleCancelar = () => {
     setEditandoId(null);
     editProductoCategoriaForm.resetForm();
-    notify.info("Edición cancelada");
+    notify.cancelled();
   };
 
   /** Eliminar un carrito con confirmación del usuario */
   const handleEliminar = async (id) => {
-    const confirmar = await notify.confirmAsync(
-      "¿Seguro que deseas eliminar este productoCategoria?"
-    );
+    const confirmar = await notify.confirmDelete();
     if (!confirmar) return;
 
-    deleteProductoCategoria.mutate(id, {
-      onSuccess: (data) => {
-        if (data?.isExitoso) {
-          notify.success("ProductoCategoria eliminado correctamente");
-          // Si el elemento eliminado estaba en edición, salir del modo edición
+    notify.deletePromise(
+      deleteProductoCategoria
+        .mutateAsync(id)
+        .then(() => {
           if (editandoId === id) {
             setEditandoId(null);
             editProductoCategoriaForm.resetForm();
           }
-          // Se limpia también el formulario de creación
+
           nuevoProductoCategoriaForm.resetForm();
 
           queryClient.setQueryData(["productoCategorias"], (old) =>
-            old ? old.filter((c) => c.productoCategoriaId !== id) : []
+            old ? old.filter((r) => r.productoCategoriaId !== id) : []
           );
-          // Revalidación para asegurar consistencia total
+
           queryClient.invalidateQueries(["productoCategorias"]);
-        }
-      },
-      onError: (error) => handleApiError(error, notify),
-    });
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   /** Exportar la lista de anuncios en un archivo Excel */
   const descargarExcel = async () => {
-    try {
-      const response = await exportarExcel.mutateAsync();
+    notify.exportPromise(
+      exportarExcel
+        .mutateAsync()
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
 
-      // Crear el blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", "productoCategoria.xlsx");
 
-      // Crear un link temporal
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "productoCategoria.xlsx"); // nombre del archivo
+          document.body.appendChild(link);
+          link.click();
 
-      document.body.appendChild(link);
-      link.click();
-
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      notify.success("Excel descargado correctamente");
-    } catch (err) {
-      notify.error("Error al descargar el Excel");
-    }
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        })
+        .catch((error) => {
+          handleApiError(error, notify);
+          throw error;
+        })
+    );
   };
 
   return {
