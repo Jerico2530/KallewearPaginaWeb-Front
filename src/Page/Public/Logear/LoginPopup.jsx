@@ -130,9 +130,6 @@ const LoginPopup = ({ loginPopup, setLoginPopup, setRegisterPopup, onSuccess }) 
 
             {/* Links */}
             <div className="text-sm text-center mt-4 text-gray-600 dark:text-gray-300">
-              <a href="#" className="text-primary hover:underline transition">
-                ¿Olvidaste tu contraseña?
-              </a>
               <br />
               ¿No tienes una cuenta?{" "}
               <span

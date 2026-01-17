@@ -13,10 +13,9 @@
  * clara, mejorando la conversión de visitantes en usuarios registrados en la plataforma.
  */
 
-import React from "react";
-import { IoCloseOutline } from "react-icons/io5";
+import { IoCloseOutline, IoEye, IoEyeOff } from "react-icons/io5";
+import React, { useCallback, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { useCrearUsuario } from "../../../hooks/useUsuario";
@@ -28,25 +27,21 @@ import { camposUsuario } from "./Constans/UsuarioVisualConstansCom";
 import { useNotifier } from "../../../utils/useNotifier";
 import { NOTIFICACIONES } from "../../../constants/notificationsConstantes";
 
-// Botón de envío reutilizable con animación
-const SubmitButton = ({ isSubmitting, children }) => (
+const SubmitButton = React.memo(({ isSubmitting, children }) => (
   <motion.button
     type="submit"
     disabled={isSubmitting}
     className={`bg-gradient-to-r from-primary to-secondary text-white font-semibold py-3 rounded-full shadow-md 
-    hover:shadow-xl transition-all duration-300 mt-2 ${
-      isSubmitting ? "opacity-60 cursor-not-allowed" : ""
-    }`}
+      hover:shadow-xl transition-all duration-300 mt-2 ${isSubmitting ? "opacity-60 cursor-not-allowed" : ""}`}
   >
     {isSubmitting ? "Creando..." : children}
   </motion.button>
-);
+));
 
 const RegisterPopup = ({ registerPopup, setRegisterPopup, setLoginPopup }) => {
   const crearUsuario = useCrearUsuario();
-  const queryClient = useQueryClient();
-  const { success, error } = useNotifier();
-  // Configuración de React Hook Form con validación Yup
+  const { success, error, confirmAsync } = useNotifier();
+
   const {
     register,
     handleSubmit,
@@ -59,31 +54,46 @@ const RegisterPopup = ({ registerPopup, setRegisterPopup, setLoginPopup }) => {
     reValidateMode: "onSubmit",
   });
 
-  // Función para enviar los datos del formulario
-  const onSubmit = (data) => {
-    const payload = mapToPayload(data);
+  // Estado para mostrar/ocultar contraseñas
+  const [showPassword, setShowPassword] = useState({});
 
-    crearUsuario.mutate(payload, {
-      onSuccess: () => {
-        success(NOTIFICACIONES.REGISTER.SUCCESS);
-        reset(UsuarioInicial);
-        setRegisterPopup(false);
+  const togglePassword = (field) => {
+    setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }));
+  };
 
-        setTimeout(() => {
+  const onSubmit = useCallback(
+    (data) => {
+      const payload = mapToPayload(data);
+      console.time("crearUsuario");
+
+      crearUsuario.mutate(payload, {
+        onSuccess: () => {
+          console.timeEnd("crearUsuario");
+          reset(UsuarioInicial);
+          setRegisterPopup(false);
           setLoginPopup(true);
-        }, 500);
-      },
-      onError: (err) => {
-        handleApiError(err, error, NOTIFICACIONES.REGISTER.ERROR);
-      },
-    });
-  };
+          success(NOTIFICACIONES.REGISTER.SUCCESS);
+        },
+        onError: (err) => {
+          console.timeEnd("crearUsuario");
+          handleApiError(err, error, NOTIFICACIONES.REGISTER.ERROR);
+        },
+      });
+    },
+    [crearUsuario, reset, setRegisterPopup, setLoginPopup, success, error],
+  );
 
-  // Función para cerrar el popup, con confirmación si hay cambios sin guardar
-  const handleClose = () => {
-    if (isDirty && !confirm("¿Deseas salir sin guardar los cambios?")) return;
+  const handleClose = useCallback(async () => {
+    if (isDirty) {
+      const ok = await confirmAsync({
+        message: "Tienes cambios sin guardar, ¿deseas salir?",
+        confirmText: "Salir",
+        cancelText: "Cancelar",
+      });
+      if (!ok) return;
+    }
     setRegisterPopup(false);
-  };
+  }, [isDirty, setRegisterPopup, confirmAsync]);
 
   return (
     <AnimatePresence>
@@ -94,13 +104,11 @@ const RegisterPopup = ({ registerPopup, setRegisterPopup, setLoginPopup }) => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          {/* Overlay con desenfoque */}
           <motion.div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             onClick={handleClose}
           />
 
-          {/* Popup modal */}
           <motion.div
             className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-6 z-10"
             initial={{ y: -50, opacity: 0, scale: 0.95 }}
@@ -121,28 +129,41 @@ const RegisterPopup = ({ registerPopup, setRegisterPopup, setLoginPopup }) => {
               className="flex flex-col gap-4"
               onSubmit={handleSubmit(onSubmit)}
             >
-              {camposUsuario.map(({ name, placeholder, icon, type }) => (
-                <div className="relative" key={name}>
-                  {icon}
-                  <input
-                    type={type}
-                    placeholder={placeholder}
-                    {...register(name)}
-                    className={`w-full pl-10 pr-3 py-3 border rounded-full transition-all duration-200 
-                      ${
-                        errors[name]
-                          ? "border-red-500 focus:ring-red-500"
-                          : "border-gray-300 dark:border-gray-600 focus:ring-primary"
+              {camposUsuario.map(({ name, placeholder, icon, type }) => {
+                const isPasswordField = name
+                  .toLowerCase()
+                  .includes("contraseña");
+                const show = showPassword[name] || false;
+
+                return (
+                  <div className="relative" key={name}>
+                    {icon}
+                    <input
+                      type={
+                        isPasswordField ? (show ? "text" : "password") : type
                       }
-                      dark:bg-gray-800 text-gray-900 dark:text-white`}
-                  />
-                  {errors[name] && (
-                    <p className="text-sm text-red-500 mt-1">
-                      {errors[name]?.message}
-                    </p>
-                  )}
-                </div>
-              ))}
+                      placeholder={placeholder}
+                      {...register(name)}
+                      className={`w-full pl-10 pr-10 py-3 border rounded-full transition-all duration-200
+                        ${errors[name] ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600 focus:ring-primary"}
+                        dark:bg-gray-800 text-gray-900 dark:text-white`}
+                    />
+                    {isPasswordField && (
+                      <div
+                        className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-gray-500 dark:text-gray-300"
+                        onClick={() => togglePassword(name)}
+                      >
+                        {show ? <IoEyeOff /> : <IoEye />}
+                      </div>
+                    )}
+                    {errors[name] && (
+                      <p className="text-sm text-red-500 mt-1">
+                        {errors[name]?.message}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
 
               <SubmitButton isSubmitting={isSubmitting}>
                 Registrarse
@@ -155,4 +176,4 @@ const RegisterPopup = ({ registerPopup, setRegisterPopup, setLoginPopup }) => {
   );
 };
 
-export default RegisterPopup;
+export default React.memo(RegisterPopup);
