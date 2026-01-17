@@ -18,6 +18,7 @@
  */
 
 import React, { useState, useMemo } from "react";
+import { normalize, getSearchableValues } from "../../utils/searchUtils";
 
 const DataTable = ({
   columns,
@@ -37,27 +38,14 @@ const DataTable = ({
   const filteredData = useMemo(() => {
     if (!searchText.trim()) return data;
 
-    const lower = searchText.toLowerCase();
+    const search = normalize(searchText);
 
     return data.filter((row) =>
-      columns.some((col) => {
-        const value = row[col.key];
-        if (value == null) return false;
-
-        if (typeof value === "boolean") {
-          return (value ? "activo" : "inactivo").includes(lower);
-        }
-
-        if (value instanceof Date || col.key.toLowerCase().includes("fecha")) {
-          const fecha = new Date(value);
-          return (
-            fecha.toLocaleDateString().toLowerCase().includes(lower) ||
-            fecha.getFullYear().toString().includes(lower)
-          );
-        }
-
-        return value.toString().toLowerCase().includes(lower);
-      })
+      columns.some((col) =>
+        getSearchableValues(row[col.key], col.key)
+          .map(normalize)
+          .some((v) => v.includes(search))
+      )
     );
   }, [searchText, data, columns]);
 
@@ -91,9 +79,7 @@ const DataTable = ({
           )}
 
           {extraHeader && (
-            <div className="flex items-center gap-2">
-              {extraHeader}
-            </div>
+            <div className="flex items-center gap-2">{extraHeader}</div>
           )}
         </div>
       )}
@@ -116,9 +102,7 @@ const DataTable = ({
               ))}
 
               {actions && (
-                <th className="px-3 py-2 text-center table-header">
-                  Acciones
-                </th>
+                <th className="px-3 py-2 text-center table-header">Acciones</th>
               )}
             </tr>
           </thead>

@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { CreditCard, Wallet } from "lucide-react";
-import { useCreateDetalleTarjeta } from "../../hooks/useDetalleTarjeta";
-import { useCrearInfoTarjeta, useActualizarInfoTarjeta } from "../../hooks/useInfoTarjeta";
 import { useMedioPagos } from "../../hooks/useMedioPago";
-import useUserStore from "../../store/userStore";
 
-const InfoTarjetaModal = ({ open, onClose, modo, tarjeta }) => {
-  // Obtenemos usuarioId del store
-  const usuarioId = useUserStore((state) => state.usuarioId);
-
+const InfoTarjetaModal = ({
+  open,
+  onClose,
+  modo,
+  tarjeta,
+  onSubmit,
+  errores,
+}) => {
   const [form, setForm] = useState({
     medioPagoId: "",
     numeroTarjeta: "",
@@ -17,22 +18,44 @@ const InfoTarjetaModal = ({ open, onClose, modo, tarjeta }) => {
     estado: true,
   });
 
-  // Lista de medios de pago
   const { data: mediosPago = [], isLoading: loadingMedios } = useMedioPagos();
 
-  const createDetalleTarjeta = useCreateDetalleTarjeta();
-  const createInfoTarjeta = useCrearInfoTarjeta();
-  const updateInfoTarjeta = useActualizarInfoTarjeta();
+  const campos = [
+    {
+      name: "medioPagoId",
+      label: "Medio de pago",
+      type: "select",
+      options: mediosPago.map((m) => ({
+        value: m.medioPagoId.toString(),
+        label: m.descripcionMedioPago,
+      })),
+      placeholder: "Selecciona un medio de pago",
+    },
+    {
+      name: "numeroTarjeta",
+      label: "Número de tarjeta",
+      type: "text",
+      placeholder: "Número de tarjeta",
+    },
+    {
+      name: "fechaVencimiento",
+      label: "Fecha de vencimiento",
+      type: "text",
+      placeholder: "MM/AA",
+    },
+    { name: "cvv", label: "CVV", type: "text", placeholder: "CVV" },
+    { name: "estado", label: "Activo", type: "checkbox" },
+  ];
 
-  // Inicializamos formulario al abrir modal
+  // Inicializar formulario al abrir modal
   useEffect(() => {
     if (modo === "editar" && tarjeta) {
       setForm({
-        medioPagoId: tarjeta.medioPagoId?.toString() || "",
-        numeroTarjeta: tarjeta.numeroTarjeta || "",
-        fechaVencimiento: tarjeta.fechaVencimiento || "",
-        cvv: tarjeta.cvv || "",
-        estado: tarjeta.estado,
+        medioPagoId: tarjeta.medioPagoId?.toString() ?? "",
+        numeroTarjeta: tarjeta.numeroTarjeta ?? "",
+        fechaVencimiento: tarjeta.fechaVencimiento ?? "",
+        cvv: tarjeta.cvv ?? "",
+        estado: Boolean(tarjeta.estado),
       });
     } else {
       setForm({
@@ -48,128 +71,148 @@ const InfoTarjetaModal = ({ open, onClose, modo, tarjeta }) => {
   if (!open) return null;
 
   const esBilletera = tarjeta?.tipoPago?.toLowerCase().includes("billetera");
-  const bgColor = form.estado ? "bg-gray-100 dark:bg-gray-800" : "bg-gray-300 dark:bg-gray-700";
-  const iconColor = form.estado ? "text-gray-800 dark:text-gray-200" : "text-gray-500";
+  const bgColor = form.estado
+    ? "bg-gray-100 dark:bg-gray-800"
+    : "bg-gray-300 dark:bg-gray-700";
+  const iconColor = form.estado
+    ? "text-gray-800 dark:text-gray-200"
+    : "text-gray-500";
 
   const handleGuardar = async () => {
-    if (!form.medioPagoId || !form.numeroTarjeta || !form.fechaVencimiento || !form.cvv) {
-      alert("Completa todos los campos antes de guardar.");
-      return;
-    }
-
     try {
-      // 1️⃣ Crear detalleTarjeta
-      const detalle = await createDetalleTarjeta.mutateAsync({
-        numeroTarjeta: form.numeroTarjeta,
-        fechaVencimiento: form.fechaVencimiento,
-        cvv: form.cvv,
-        estado: form.estado,
-      });
-
-      // 2️⃣ Crear o actualizar InfoTarjeta con usuarioId seguro
-      const payload = {
-        usuarioId: Number(usuarioId),           // ✅ ahora siempre existe
-        medioPagoId: Number(form.medioPagoId),
-        detalleTarjetaId: detalle.detalleTarjetaId,
-        estado: form.estado,
-      };
-
-      if (modo === "crear") {
-        await createInfoTarjeta.mutateAsync(payload);
-      } else {
-        await updateInfoTarjeta.mutateAsync({
-          ...payload,
-          infoTarjetaId: tarjeta.infoTarjetaId,
-        });
-      }
-
-      onClose();
+      await onSubmit(form);
     } catch (error) {
-      console.error("Error al guardar la tarjeta:", error);
-      alert("Hubo un error al guardar la tarjeta.");
+      console.error(error);
     }
   };
+
+  const renderError = (campo) =>
+    errores?.[campo] && (
+      <p className="text-red-500 text-xs mt-1">{errores[campo]}</p>
+    );
+
+  const inputClass = (campo) =>
+    `w-full border rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white ${
+      errores?.[campo]
+        ? "border-red-500 focus:ring-red-500"
+        : "border-gray-300 dark:border-gray-700 focus:ring-primary"
+    }`;
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
       <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-md p-6 space-y-6">
-        <h2 className="text-xl font-semibold">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           {modo === "crear" ? "Agregar tarjeta" : "Editar tarjeta"}
         </h2>
 
         {/* Tarjeta preview */}
-        <div className={`rounded-2xl p-5 h-36 border border-gray-300 dark:border-gray-600 shadow-sm transition ${bgColor}`}>
+        <div
+          className={`rounded-2xl p-5 h-36 border shadow-sm transition ${bgColor}`}
+        >
           <div className="flex justify-between items-start">
-            <div className={`p-3 rounded-xl ${bgColor} flex items-center justify-center`}>
-              {esBilletera ? <Wallet size={22} className={iconColor} /> : <CreditCard size={22} className={iconColor} />}
+            <div
+              className={`p-3 rounded-xl ${bgColor} flex items-center justify-center`}
+            >
+              {esBilletera ? (
+                <Wallet size={22} className={iconColor} />
+              ) : (
+                <CreditCard size={22} className={iconColor} />
+              )}
             </div>
             <span className="text-xs font-medium text-gray-500">
-              {mediosPago.find((m) => m.medioPagoId.toString() === form.medioPagoId)?.descripcionMedioPago ?? "Tipo de pago"}
+              {mediosPago.find(
+                (m) => m.medioPagoId.toString() === form.medioPagoId,
+              )?.descripcionMedioPago ?? "Tipo de pago"}
             </span>
           </div>
 
           <div className="mt-6 space-y-1">
             <p className="font-semibold text-gray-900 dark:text-white">
-              {form.numeroTarjeta ? `•••• •••• •••• ${form.numeroTarjeta.slice(-4)}` : "Número de tarjeta"}
+              {form.numeroTarjeta
+                ? `•••• •••• •••• ${form.numeroTarjeta.slice(-4)}`
+                : "Número de tarjeta"}
             </p>
-            <p className={`text-xs font-medium ${form.estado ? "text-gray-600 dark:text-gray-400" : "text-gray-700 dark:text-gray-300"}`}>
-              {form.estado ? "Activo" : "Inactivo"} | Vence {form.fechaVencimiento || "MM/AA"}
+            <p
+              className={`text-xs font-medium ${
+                form.estado
+                  ? "text-gray-600 dark:text-gray-400"
+                  : "text-gray-700 dark:text-gray-300"
+              }`}
+            >
+              {form.estado ? "Activo" : "Inactivo"} | Vence{" "}
+              {form.fechaVencimiento || "MM/AA"}
             </p>
           </div>
         </div>
 
-        {/* Formulario */}
+        {/* Formulario dinámico */}
         <div className="space-y-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Medio de pago</label>
-          {loadingMedios ? (
-            <p>Cargando medios de pago...</p>
-          ) : (
-            <select
-              value={form.medioPagoId}
-              onChange={(e) => setForm({ ...form, medioPagoId: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white"
-            >
-              <option value="">Selecciona un medio de pago</option>
-              {mediosPago.map((m) => (
-                <option key={m.medioPagoId} value={m.medioPagoId.toString()}>
-                  {m.descripcionMedioPago}
-                </option>
-              ))}
-            </select>
-          )}
+          {campos.map((campo) => {
+            if (campo.type === "select") {
+              return (
+                <div key={campo.name}>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {campo.label}
+                  </label>
+                  {loadingMedios ? (
+                    <p>Cargando medios...</p>
+                  ) : (
+                    <>
+                      <select
+                        value={form[campo.name]}
+                        onChange={(e) =>
+                          setForm({ ...form, [campo.name]: e.target.value })
+                        }
+                        className={inputClass(campo.name)}
+                      >
+                        <option value="">{campo.placeholder}</option>
+                        {campo.options.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      {renderError(campo.name)}
+                    </>
+                  )}
+                </div>
+              );
+            }
 
-          <input
-            type="text"
-            placeholder="Número de tarjeta"
-            className="w-full border rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white"
-            value={form.numeroTarjeta}
-            onChange={(e) => setForm({ ...form, numeroTarjeta: e.target.value })}
-          />
+            if (campo.type === "checkbox") {
+              return (
+                <label
+                  key={campo.name}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={form[campo.name]}
+                    onChange={(e) =>
+                      setForm({ ...form, [campo.name]: e.target.checked })
+                    }
+                  />
+                  {campo.label}
+                </label>
+              );
+            }
 
-          <input
-            type="text"
-            placeholder="MM/AA"
-            className="w-full border rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white"
-            value={form.fechaVencimiento}
-            onChange={(e) => setForm({ ...form, fechaVencimiento: e.target.value })}
-          />
-
-          <input
-            type="text"
-            placeholder="CVV"
-            className="w-full border rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white"
-            value={form.cvv}
-            onChange={(e) => setForm({ ...form, cvv: e.target.value })}
-          />
-
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.estado}
-              onChange={(e) => setForm({ ...form, estado: e.target.checked })}
-            />
-            Activo
-          </label>
+            // type=text
+            return (
+              <div key={campo.name}>
+                <input
+                  type={campo.type}
+                  placeholder={campo.placeholder}
+                  value={form[campo.name]}
+                  onChange={(e) =>
+                    setForm({ ...form, [campo.name]: e.target.value })
+                  }
+                  className={inputClass(campo.name)}
+                />
+                {renderError(campo.name)}
+              </div>
+            );
+          })}
         </div>
 
         {/* Botones */}

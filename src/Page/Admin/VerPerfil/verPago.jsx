@@ -1,63 +1,25 @@
-import React, { useState } from "react";
+import React from "react";
 import AccountLayout from "../../../components/UI/AccountLayout";
-import useUserStore from "../../../store/userStore";
-import {
-  useInfoTarjetasByUsuario,
-  useCrearInfoTarjeta,
-  useActualizarInfoTarjeta,
-  useEliminarInfoTarjeta,
-} from "../../../hooks/useInfoTarjeta";
 import { CreditCard, Wallet, Pencil, Trash2 } from "lucide-react";
 import InfoTarjetaModal from "../../../components/UI/InfoTarjetaModal";
+import { useVerPago } from "./Logica/useVerPago";
 
 const VerPago = () => {
-  const { usuarioId, nombreCompleto, apellidoCompleto, imagen } = useUserStore();
-  const user = { nombreCompleto, apellidoCompleto, imagen };
-
-  const [openModal, setOpenModal] = useState(false);
-  const [modo, setModo] = useState("crear");
-  const [tarjetaSeleccionada, setTarjetaSeleccionada] = useState(null);
-
-  const { data: infoTarjetas = [], isLoading, isError } = useInfoTarjetasByUsuario(usuarioId);
-
-  const crearMutation = useCrearInfoTarjeta();
-  const actualizarMutation = useActualizarInfoTarjeta();
-  const eliminarMutation = useEliminarInfoTarjeta();
-
-  const abrirCrear = () => {
-    setModo("crear");
-    setTarjetaSeleccionada(null);
-    setOpenModal(true);
-  };
-
-  const abrirEditar = (tarjeta) => {
-    setModo("editar");
-    setTarjetaSeleccionada(tarjeta);
-    setOpenModal(true);
-  };
-
-  const eliminar = (id) => {
-    if (!confirm("¿Deseas eliminar este medio de pago?")) return;
-    eliminarMutation.mutate(id);
-  };
-
-  const onSubmit = (form) => {
-    if (modo === "crear") {
-      crearMutation.mutate({
-        usuarioId,
-        medioPagoId: Number(form.medioPagoId),
-        estado: form.estado,
-      });
-    } else {
-      actualizarMutation.mutate({
-        infoTarjetaId: tarjetaSeleccionada.infoTarjetaId,
-        detalleTarjetaId: tarjetaSeleccionada.detalleTarjetaId,
-        medioPagoId: Number(form.medioPagoId),
-        estado: form.estado,
-      });
-    }
-    setOpenModal(false);
-  };
+  const {
+    user,
+    infoTarjetas,
+    isLoading,
+    isError,
+    openModal,
+    modo,
+    tarjetaSeleccionada,
+    abrirCrear,
+    abrirEditar,
+    eliminar,
+    onSubmit,
+    cerrarModal,
+    errores, // <-- nuevos errores visibles
+  } = useVerPago();
 
   if (isLoading) {
     return (
@@ -115,7 +77,6 @@ const VerPago = () => {
               const ultimos4 = tarjeta.numeroTarjeta?.slice(-4) ?? "****";
               const esBilletera = tarjeta.tipoPago?.toLowerCase().includes("billetera");
 
-              // Colores urbanos sobrios
               const bgColor = tarjeta.estado
                 ? "bg-gray-100 dark:bg-gray-800"
                 : "bg-gray-300 dark:bg-gray-700";
@@ -153,16 +114,13 @@ const VerPago = () => {
 
                   {/* Icono y tipo */}
                   <div className="flex justify-between items-start">
-                    <div
-                      className={`p-3 rounded-xl ${iconBg} transition flex items-center justify-center`}
-                    >
+                    <div className={`p-3 rounded-xl ${iconBg} transition flex items-center justify-center`}>
                       {esBilletera ? (
                         <Wallet size={22} className={iconColor} />
                       ) : (
                         <CreditCard size={22} className={iconColor} />
                       )}
                     </div>
-
                     <span className="text-xs font-medium text-gray-500">
                       {tarjeta.tipoPago}
                     </span>
@@ -183,8 +141,7 @@ const VerPago = () => {
                           : "text-gray-700 dark:text-gray-300"
                       }`}
                     >
-                      {tarjeta.estado ? "Activo" : "Inactivo"} | Vence{" "}
-                      {tarjeta.fechaVencimiento}
+                      {tarjeta.estado ? "Activo" : "Inactivo"} | Vence {tarjeta.fechaVencimiento}
                     </p>
                   </div>
                 </article>
@@ -206,8 +163,9 @@ const VerPago = () => {
         open={openModal}
         modo={modo}
         tarjeta={tarjetaSeleccionada}
-        onClose={() => setOpenModal(false)}
+        onClose={cerrarModal}
         onSubmit={onSubmit}
+        errores={errores} // <-- errores visibles
       />
     </AccountLayout>
   );

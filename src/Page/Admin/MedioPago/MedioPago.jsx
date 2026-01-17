@@ -19,7 +19,7 @@
  * - Tipografía centralizada (typography.css)
  * - Layout idéntico a UsuariosPageAdmin
  */
-import React from "react";
+import React, { useMemo } from "react";
 import PageCrud from "../Pagess/PageCrud";
 import DataTable from "../../../components/UI/DataTable";
 import { useForm } from "../LogicaAdmin/useForm";
@@ -38,7 +38,6 @@ import {
   CancelButton,
   ExcelButton,
 } from "../../../components/UI/LogicaButton";
-import Select from "react-select";
 
 const MedioPagoPageAdmin = () => {
   const nuevoMedioPagoForm = useForm(MedioPagoInicial, MedioPagoValidacion);
@@ -61,6 +60,17 @@ const MedioPagoPageAdmin = () => {
     value: m.tipoPagoId,
     label: m.descripcionTipoPago,
   }));
+
+  const medioPagoConNombres = useMemo(
+    () =>
+      medioPagos.map((r) => ({
+        ...r,
+        tipoPagoNombre: tipoPagos.find((u) => u.tipoPagoId === r.tipoPagoId)?.descripcionTipoPago || "",
+      })),
+    [medioPagos, tipoPagos]
+  );
+
+
 
   /* ================== Generar columnas dinámicas ================== */
   const columns = Object.entries(medioPagoFormSchema)
@@ -180,7 +190,7 @@ const MedioPagoPageAdmin = () => {
               <p className="text-secondary text-center py-10">Cargando...</p>
             ) : (
               <DataTable
-                data={medioPagos}
+                data={medioPagoConNombres}
                 keyField="medioPagoId"
                 enableSearch
                 columns={columns}

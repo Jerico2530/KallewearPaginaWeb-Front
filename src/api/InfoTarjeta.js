@@ -14,9 +14,7 @@ export const getInfoTarjetasById = async (infoTarjetaId) => {
 
 // 🔹 Obtener InfoTarjetas por Usuario
 export const getInfoTarjetasByUsuario = async (usuarioId) => {
-  const response = await axiosClient.get(
-    `/InfoTarjeta/usuario/${usuarioId}`
-  );
+  const response = await axiosClient.get(`/InfoTarjeta/usuario/${usuarioId}`);
   return response.data.resultado;
 };
 
@@ -30,11 +28,24 @@ export const createInfoTarjetas = async (nuevoInfoTarjetas) => {
 export const updateInfoTarjetas = async (infoTarjeta) => {
   const response = await axiosClient.put(
     `/InfoTarjeta/${infoTarjeta.infoTarjetaId}`,
-    infoTarjeta
+    infoTarjeta,
   );
   return response.data.resultado;
 };
 
+export const patchInfoTarjeta = async (infoTarjetaId, patchOps) => {
+  const response = await axiosClient.patch(
+    `/InfoTarjeta/${infoTarjetaId}`,
+    patchOps,
+    {
+      headers: {
+        "Content-Type": "application/json-patch+json",
+      },
+    },
+  );
+
+  return response.data.resultado;
+};
 // 🔹 Eliminar InfoTarjeta
 export const deleteInfoTarjetas = async (infoTarjetaId) => {
   const response = await axiosClient.delete(`/InfoTarjeta/${infoTarjetaId}`);

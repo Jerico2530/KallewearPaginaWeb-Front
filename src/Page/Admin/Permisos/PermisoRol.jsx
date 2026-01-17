@@ -20,7 +20,7 @@
  * - Tipografía centralizada (typography.css)
  */
 
-import React from "react";
+import React, { useMemo } from "react";
 import PageCrud from "../Pagess/PageCrud";
 import DataTable from "../../../components/UI/DataTable";
 import { useForm } from "../LogicaAdmin/useForm";
@@ -70,6 +70,16 @@ const UserPermRolPageAdmin = () => {
     value: r.rolId, 
     label: r.nombreRol 
   }));
+
+  const permRolConNombres = useMemo(
+    () =>
+      permRoles.map((r) => ({
+        ...r,
+        permisoNombre: permisos.find((u) => u.permisoId === r.permisoId)?.nombrePermiso || "",
+        rolNombre: roles.find((rol) => rol.rolId === r.rolId)?.nombreRol || "",
+      })),
+    [permRoles, permisos, roles]
+  );
 
   /* ================== Generar columnas dinámicas ================== */
   const columns = Object.entries(permRolFormSchema)
@@ -138,7 +148,7 @@ const UserPermRolPageAdmin = () => {
     }));
 
   const handleCrearConValidacion = async () => {
-    const valido = await nuevoForm.validate();
+    const valido = await nuevoPermisoRolForm.validate();
     if (!valido) return;
     handleCrear();
   };
@@ -196,7 +206,7 @@ const UserPermRolPageAdmin = () => {
               </p>
             ) : (
               <DataTable
-                data={permRoles}
+                data={permRolConNombres}
                 keyField="permRolId"
                 enableSearch
                 columns={columns}

@@ -26,6 +26,7 @@ import {
   deleteDetalleTarjetas,
   getDetalleTarjetasById,
   exportarExcelDetalleTarjetas,
+  patchDetalleTarjetas,
 } from "../api/DetalleTarjeta";
 
 // Consulta principal: recupera todos los DetalleTarjetas
@@ -70,6 +71,18 @@ export const useDeleteDetalleTarjeta = () => {
   return useMutation({
     mutationFn: deleteDetalleTarjetas,
     onSuccess: () => queryClient.invalidateQueries(["detalleTarjetas"]),
+  });
+};
+
+// Actualización parcial de un DetalleTarjeta (PATCH - JSON Patch)
+export const usePatchDetalleTarjeta = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patchOps }) => patchDetalleTarjetas(id, patchOps),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries(["detalleTarjetas"]);
+      queryClient.invalidateQueries(["detalleTarjeta", variables.id]);
+    },
   });
 };
 

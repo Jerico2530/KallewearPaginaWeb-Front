@@ -107,7 +107,7 @@ const TallasPageAdmin = () => {
     }));
 
   const handleCrearConValidacion = async () => {
-    const valido = await nuevoForm.validate();
+    const valido = await nuevoTallaForm.validate();
     if (!valido) return;
     handleCrear();
   };

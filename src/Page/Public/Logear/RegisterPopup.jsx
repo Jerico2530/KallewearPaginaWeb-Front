@@ -55,26 +55,28 @@ const RegisterPopup = ({ registerPopup, setRegisterPopup, setLoginPopup }) => {
   } = useForm({
     defaultValues: UsuarioInicial,
     resolver: yupResolver(usuarioValidacion),
+    mode: "onSubmit",
+    reValidateMode: "onSubmit",
   });
+
   // Función para enviar los datos del formulario
-  const onSubmit = async (data) => {
-    try {
-      const payload = mapToPayload(data);
-      await crearUsuario.mutateAsync(payload);
+  const onSubmit = (data) => {
+    const payload = mapToPayload(data);
 
-      success(NOTIFICACIONES.REGISTER.SUCCESS);
+    crearUsuario.mutate(payload, {
+      onSuccess: () => {
+        success(NOTIFICACIONES.REGISTER.SUCCESS);
+        reset(UsuarioInicial);
+        setRegisterPopup(false);
 
-      reset(UsuarioInicial);
-      setRegisterPopup(false);
-
-      setTimeout(() => {
-        setLoginPopup(true);
-      }, 500);
-
-      queryClient.invalidateQueries(["usuarios"]);
-    } catch (err) {
-      handleApiError(err, error, NOTIFICACIONES.REGISTER.ERROR);
-    }
+        setTimeout(() => {
+          setLoginPopup(true);
+        }, 500);
+      },
+      onError: (err) => {
+        handleApiError(err, error, NOTIFICACIONES.REGISTER.ERROR);
+      },
+    });
   };
 
   // Función para cerrar el popup, con confirmación si hay cambios sin guardar

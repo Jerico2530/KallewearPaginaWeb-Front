@@ -25,6 +25,19 @@ export const updateDetalleTarjetas = async (detalleTarjeta) => {
   return response.data.resultado;
 };
 
+// 🔹 Actualizar DetalleTarjeta (PATCH)
+export const patchDetalleTarjetas = async (detalleTarjetaId, patchOps) => {
+  const response = await axiosClient.patch(`/DetalleTarjeta/${detalleTarjetaId}`,patchOps,
+    {
+      headers: {
+        "Content-Type": "application/json-patch+json",
+      },
+    }
+  );
+  return response.data.resultado;
+};
+
+
 // 🔹 Eliminar DetalleTarjeta
 export const deleteDetalleTarjetas = async (detalleTarjetaId) => {
   const response = await axiosClient.delete(`/DetalleTarjeta/${detalleTarjetaId}`);

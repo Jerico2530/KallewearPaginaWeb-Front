@@ -19,7 +19,15 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getInfoTarjetas, createInfoTarjetas, updateInfoTarjetas, deleteInfoTarjetas,exportarExcelInfoTarjetas,getInfoTarjetasByUsuario  } from "../api/InfoTarjeta";
+import {
+  getInfoTarjetas,
+  createInfoTarjetas,
+  updateInfoTarjetas,
+  deleteInfoTarjetas,
+  exportarExcelInfoTarjetas,
+  getInfoTarjetasByUsuario,
+  patchInfoTarjeta,
+} from "../api/InfoTarjeta";
 
 // Consulta del listado de infoTarjetas desde el API
 export const useInfoTarjetas = () => {
@@ -28,7 +36,7 @@ export const useInfoTarjetas = () => {
     queryFn: getInfoTarjetas, // Función que obtiene los datos del servidor
     staleTime: 1000 * 60 * 5, // Tiempo durante el cual los datos se consideran válidos
   });
-};  
+};
 
 export const useInfoTarjetasByUsuario = (usuarioId) => {
   return useQuery({
@@ -65,6 +73,19 @@ export const useActualizarInfoTarjeta = () => {
   return useMutation({
     mutationFn: updateInfoTarjetas,
     onSuccess: () => queryClient.invalidateQueries(["infoTarjetas"]),
+  });
+};
+
+export const usePatchInfoTarjeta = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, patchOps }) => patchInfoTarjeta(id, patchOps),
+
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries(["infoTarjetas"]);
+      queryClient.invalidateQueries(["infoTarjeta", variables.id]);
+    },
   });
 };
 

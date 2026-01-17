@@ -13,10 +13,9 @@
  *   - Interfaz responsiva y compatible con modo oscuro.
  */
 
-import React from "react";
+import React, { useMemo } from "react";
 import PageCrud from "../Pagess/PageCrud";
 import DataTable from "../../../components/UI/DataTable";
-import Select from "react-select";
 import {
   AddButton,
   EditButton,
@@ -63,6 +62,17 @@ const UserRolesPageAdmin = () => {
     value: r.rolId,
     label: r.nombreRol,
   }));
+
+  const userRolesConNombres = useMemo(
+    () =>
+      userRoles.map((r) => ({
+        ...r,
+        usuarioNombre: usuarios.find((u) => u.usuarioId === r.usuarioId)?.nombreCompleto || "",
+        rolNombre: roles.find((rol) => rol.rolId === r.rolId)?.nombreRol || "",
+      })),
+    [userRoles, usuarios, roles]
+  );
+
 
   /* ================== Generar columnas dinámicas ================== */
   const columns = Object.entries(userRolFormSchema)
@@ -189,7 +199,7 @@ const UserRolesPageAdmin = () => {
               </p>
             ) : (
               <DataTable
-                data={userRoles}
+                data={userRolesConNombres}
                 keyField="userRolId"
                 enableSearch
                 columns={columns}
@@ -198,7 +208,7 @@ const UserRolesPageAdmin = () => {
                 onEditChange={editUserRolForm.handleChange}
                 onSave={handleGuardar}
                 onCancel={handleCancelar}
-                extra={{ usuarios, roles }}
+                extraHeader={null} // o JSX si quieres botones/acciones extra
                 actions={{
                   render: (r) => (
                     <div className="flex gap-2 justify-center">

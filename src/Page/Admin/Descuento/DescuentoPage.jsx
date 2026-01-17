@@ -114,7 +114,7 @@ const DescuentoPageAdmin = () => {
     }));
 
   const handleCrearConValidacion = async () => {
-    const valido = await nuevoForm.validate();
+    const valido = await nuevoDescuentoForm.validate();
     if (!valido) return;
     handleCrear();
   };

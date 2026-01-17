@@ -1,5 +1,12 @@
 export const tableRenderers = {
-  date: (value) => (value ? new Date(value).toLocaleDateString() : "-"),
+  date: (value) => {
+    if (!value) return "-";
+
+    const date = new Date(value);
+    if (isNaN(date)) return "-";
+
+    return date.toLocaleDateString("es-PE");
+  },
 
   status: (value) => (
     <span

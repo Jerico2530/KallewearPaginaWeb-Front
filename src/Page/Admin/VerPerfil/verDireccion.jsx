@@ -53,13 +53,7 @@ const VerDireccion = () => {
   }
 
    return (
-    /* ====================================================
-       ✅ FIX PROFESIONAL:
-       - NO layout aquí
-       - NO Sidebar
-       - NO max-w / px
-       - AccountLayout controla todo
-       ==================================================== */
+
     <AccountLayout user={user}>
       {/* ================= CONTENIDO DE LA PÁGINA ================= */}
       <div className="space-y-6">

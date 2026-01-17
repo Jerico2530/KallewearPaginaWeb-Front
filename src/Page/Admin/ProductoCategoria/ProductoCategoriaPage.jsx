@@ -20,7 +20,7 @@
  * - Tipografía centralizada (typography.css)
  */
 
-import React from "react";
+import React, { useMemo } from "react";
 import PageCrud from "../Pagess/PageCrud";
 import DataTable from "../../../components/UI/DataTable";
 import { useForm } from "../LogicaAdmin/useForm";
@@ -78,6 +78,16 @@ const ProductoCategoriaCategoriaPageAdmin = () => {
     value: c.categoriaId,
     label: c.desCategoria,
   }));
+
+  const productoCategoriaConNombres = useMemo(
+    () =>
+      productoCategorias.map((r) => ({
+        ...r,
+        productoNombre: productos.find((u) => u.productoId === r.productoId)?.nombre || "",
+        categoriaNombre: categorias.find((rol) => rol.categoriaId === r.categoriaId)?.desCategoria || "",
+      })),
+    [productoCategorias, productos, categorias]
+  );
 
   /* ================== Generar columnas dinámicas ================== */
   const columns = Object.entries(productoCategoriaFormSchema)
@@ -146,7 +156,7 @@ const ProductoCategoriaCategoriaPageAdmin = () => {
     }));
 
   const handleCrearConValidacion = async () => {
-    const valido = await nuevoForm.validate();
+    const valido = await nuevoProductoCategoriaForm.validate();
     if (!valido) return;
     handleCrear();
   };
@@ -207,7 +217,7 @@ const ProductoCategoriaCategoriaPageAdmin = () => {
               </p>
             ) : (
               <DataTable
-                data={productoCategorias}
+                data={productoCategoriaConNombres}
                 keyField="productoCategoriaId"
                 enableSearch
                 columns={columns}

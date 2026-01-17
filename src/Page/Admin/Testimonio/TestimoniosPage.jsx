@@ -21,7 +21,7 @@
  * - Tipografía centralizada (typography.css)
  * - Layout idéntico a UsuariosPageAdmin
  */
-import React from "react";
+import React, { useMemo } from "react";
 import PageCrud from "../Pagess/PageCrud";
 import DataTable from "../../../components/UI/DataTable";
 import { useForm } from "../LogicaAdmin/useForm";
@@ -29,7 +29,6 @@ import { TestimonioInicial } from "../../../constants/testimonioConstantes";
 import { TestimonioValidacion } from "../../../validation/TestimonioValidacion";
 import { useTestimoniosAdmin } from "./Logica/useTestimonioAdmin";
 import { useUsuarios } from "../../../hooks/useUsuario";
-import Select from "react-select";
 import { tableRenderers } from "./Constans/tableRenderers";
 import { testimonioFormSchema } from "./Constans/testimonioFormSchema";
 import { editableRenderers } from "./Constans/editableRenderers";
@@ -65,8 +64,14 @@ const TestimoniosPageAdmin = () => {
     label: u.nombreCompleto,
   }));
 
-  const renderSelectValue = (id) =>
-    usuarioOptions.find((o) => o.value === id)?.label || "-";
+  const testimoniosConNombres = useMemo(
+    () =>
+      testimonios.map((r) => ({
+        ...r,
+        usuarioNombre: usuarios.find((u) => u.usuarioId === r.usuarioId)?.nombreCompleto || "",
+      })),
+    [testimonios, usuarios]
+  );
 
   /* ================== Generar columnas dinámicas ================== */
 
@@ -175,7 +180,7 @@ const TestimoniosPageAdmin = () => {
               </p>
             ) : (
               <DataTable
-                data={testimonios}
+                data={testimoniosConNombres}
                 keyField="testimonioId"
                 enableSearch
                 columns={columns}
